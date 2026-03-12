@@ -1,0 +1,19 @@
+version: '3.9'
+services:
+  insta-manager:
+    build: .
+    container_name: insta-manager
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - web
+
+networks:
+  web:
+    external: false
