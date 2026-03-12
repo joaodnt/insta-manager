@@ -11,9 +11,4 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
       - ./data:/app/data
-    networks:
-      - web
 
-networks:
-  web:
-    external: false
