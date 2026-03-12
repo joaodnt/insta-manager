@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const db = require('./db');
 
 const app = express();
@@ -64,17 +64,17 @@ app.post('/api/generate-image', async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada. Acesse /admin/settings para configurar.' });
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const ai = new GoogleGenAI({ apiKey });
 
     const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand palette: black background #0A0A0A, neon lime accent #CCFF00, white text #FFFFFF. Modern bold minimalist style. ${prompt}. High quality, vertical 9:16 format, Portuguese text if any. No watermarks.`;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: enhancedPrompt }] }],
-      generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp-image-generation',
+      contents: enhancedPrompt,
+      config: { responseModalities: ['TEXT', 'IMAGE'] },
     });
 
-    const parts = result.response.candidates?.[0]?.content?.parts || [];
+    const parts = response.candidates?.[0]?.content?.parts || [];
     const imagePart = parts.find(p => p.inlineData);
 
     if (!imagePart) return res.status(500).json({ error: 'Imagem não gerada pela API' });
@@ -85,8 +85,7 @@ app.post('/api/generate-image', async (req, res) => {
 
     const imageUrl = `/images/${filename}`;
     if (postId) {
-      db.prepare("UPDATE posts SET image_url = ?, updated_at = ? WHERE id = ?")
-        .run(imageUrl, new Date().toISOString(), postId);
+      db.update(postId, { image_url: imageUrl });
     }
 
     res.json({ url: imageUrl, filename });
