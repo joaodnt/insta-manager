@@ -66,20 +66,22 @@ app.post('/api/generate-image', async (req, res) => {
   try {
     const ai = new GoogleGenAI({ apiKey });
 
-    const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand palette: black background #0A0A0A, neon lime accent #CCFF00, white text #FFFFFF. Modern bold minimalist style. ${prompt}. High quality, vertical 9:16 format, Portuguese text if any. No watermarks.`;
+    const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand colors: dark black background, neon lime green accent, bold white typography. Modern minimalist bold style. ${prompt}. High quality photorealistic or illustration. No watermarks. No text overlays unless requested.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp-image-generation',
-      contents: enhancedPrompt,
-      config: { responseModalities: ['TEXT', 'IMAGE'] },
+    const response = await ai.models.generateImages({
+      model: 'imagen-3.0-generate-002',
+      prompt: enhancedPrompt,
+      config: {
+        numberOfImages: 1,
+        aspectRatio: '9:16',
+        personGeneration: 'ALLOW_ADULT',
+      },
     });
 
-    const parts = response.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find(p => p.inlineData);
+    const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+    if (!imageBytes) return res.status(500).json({ error: 'Imagem não gerada pela API' });
 
-    if (!imagePart) return res.status(500).json({ error: 'Imagem não gerada pela API' });
-
-    const imageData = Buffer.from(imagePart.inlineData.data, 'base64');
+    const imageData = Buffer.from(imageBytes, 'base64');
     const filename = `${postId || Date.now()}.png`;
     fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
 
