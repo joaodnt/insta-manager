@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { GoogleGenAI } = require('@google/genai');
+// Image generation via direct REST (v1alpha supports gemini image models)
 const db = require('./db');
 
 const app = express();
@@ -64,31 +64,34 @@ app.post('/api/generate-image', async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada. Acesse /admin/settings para configurar.' });
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand colors: dark black background, neon lime green accent, bold white typography. Modern minimalist bold style. ${prompt}. High quality photorealistic or illustration. No watermarks.`;
 
-    const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand colors: dark black background, neon lime green accent, bold white typography. Modern minimalist bold style. ${prompt}. High quality photorealistic or illustration. No watermarks. No text overlays unless requested.`;
+    // Direct REST call to v1alpha — the only API version that supports Gemini image generation
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: enhancedPrompt }] }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+        }),
+      }
+    );
 
-    const response = await ai.models.generateImages({
-      model: 'imagen-3.0-generate-002',
-      prompt: enhancedPrompt,
-      config: {
-        numberOfImages: 1,
-        aspectRatio: '9:16',
-        personGeneration: 'ALLOW_ADULT',
-      },
-    });
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro na API Gemini' });
 
-    const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
-    if (!imageBytes) return res.status(500).json({ error: 'Imagem não gerada pela API' });
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find(p => p.inlineData);
+    if (!imagePart) return res.status(500).json({ error: 'Imagem não retornada pela API' });
 
-    const imageData = Buffer.from(imageBytes, 'base64');
+    const imageData = Buffer.from(imagePart.inlineData.data, 'base64');
     const filename = `${postId || Date.now()}.png`;
     fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
 
     const imageUrl = `/images/${filename}`;
-    if (postId) {
-      db.update(postId, { image_url: imageUrl });
-    }
+    if (postId) db.update(postId, { image_url: imageUrl });
 
     res.json({ url: imageUrl, filename });
   } catch (err) {
