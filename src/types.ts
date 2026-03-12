@@ -1,4 +1,4 @@
-export type Status = 'rascunho' | 'pronto' | 'agendado' | 'postado';
+export type Status = 'rascunho' | 'em-producao' | 'pronto' | 'agendado' | 'postado';
 export type Pilar = 'bastidores' | 'sistemas' | 'ia-aplicada' | 'provocacao' | 'resultado';
 export type Formato = 'reel' | 'carrossel' | 'single';
 
@@ -21,6 +21,7 @@ export interface Post {
 export interface Stats {
   total: number;
   rascunho: number;
+  'em-producao': number;
   pronto: number;
   agendado: number;
   postado: number;

@@ -121,7 +121,7 @@ const db = {
     const byStatus = (s) => posts.filter(p => p.status === s).length;
     const byPilar  = [...new Set(posts.map(p => p.pilar))].map(pilar => ({ pilar, c: posts.filter(p => p.pilar === pilar).length }));
     const byFormato= [...new Set(posts.map(p => p.formato))].map(formato => ({ formato, c: posts.filter(p => p.formato === formato).length }));
-    return { total: posts.length, rascunho: byStatus('rascunho'), pronto: byStatus('pronto'), agendado: byStatus('agendado'), postado: byStatus('postado'), byPilar, byFormato };
+    return { total: posts.length, rascunho: byStatus('rascunho'), 'em-producao': byStatus('em-producao'), pronto: byStatus('pronto'), agendado: byStatus('agendado'), postado: byStatus('postado'), byPilar, byFormato };
   },
   // Settings
   getSettings: () => ({ ...store.settings }),

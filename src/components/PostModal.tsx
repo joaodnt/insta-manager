@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Post } from '../types';
 import { api } from '../api';
 import { StatusBadge, PilarBadge, FormatoBadge } from './Badge';
-import { STATUS_CYCLE, PILARES, FORMATOS, PILAR_CFG, FORMATO_CFG } from './config';
+import { STATUS_CYCLE, STATUS_CFG, PILARES, FORMATOS, PILAR_CFG, FORMATO_CFG } from './config';
 
 interface Props {
   post: Post | null;
@@ -130,7 +130,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                 <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
                 <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
                   value={form.status || ''} onChange={e => set('status', e.target.value as any)}>
-                  {STATUS_CYCLE.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  {STATUS_CYCLE.map(s => <option key={s} value={s}>{STATUS_CFG[s].label}</option>)}
                 </select>
               </div>
             </div>

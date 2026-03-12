@@ -1,7 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { box-sizing: border-box; }
-body { margin: 0; -webkit-font-smoothing: antialiased; }
+body { margin: 0; -webkit-font-smoothing: antialiased; font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* drag-and-drop ghost */
+[draggable=true] { user-select: none; }

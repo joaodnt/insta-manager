@@ -65,9 +65,9 @@ app.post('/api/generate-image', async (req, res) => {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp-image-generation' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
-    const enhancedPrompt = `Instagram post image for infoprodutor (digital course creator) brand, professional quality, ${prompt}. Style: modern, clean, high contrast. Text must be in Portuguese if any.`;
+    const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand palette: black background #0A0A0A, neon lime accent #CCFF00, white text #FFFFFF. Modern bold minimalist style. ${prompt}. High quality, vertical 9:16 format, Portuguese text if any. No watermarks.`;
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: enhancedPrompt }] }],
