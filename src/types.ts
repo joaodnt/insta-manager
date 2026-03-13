@@ -12,6 +12,7 @@ export interface Post {
   scheduled_date: string | null;
   image_url: string | null;
   image_prompt: string;
+  video_url: string | null;
   hashtags: string;
   notes: string;
   created_at: string;

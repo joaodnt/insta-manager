@@ -17,6 +17,8 @@ export const api = {
   getStats:    () => req<Stats>('/api/stats'),
   generateImage: (prompt: string, postId?: string) =>
     req<{ url: string; filename: string }>('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, postId }) }),
+  rewriteCopy: (data: { caption: string; hook: string; references: string; formato: string }) =>
+    req<{ hook: string; caption: string }>('/api/rewrite-copy', { method: 'POST', body: JSON.stringify(data) }),
   getSettings:   () => req<Record<string, string>>('/api/settings'),
   saveSettings:  (data: Record<string, string>) => req<{ ok: boolean }>('/api/settings', { method: 'POST', body: JSON.stringify(data) }),
 };
