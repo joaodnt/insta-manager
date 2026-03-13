@@ -281,7 +281,18 @@ app.post('/api/generate-prompt', async (req, res) => {
   try {
     const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram de infoprodutos digitais no Brasil.
 Marca: Infomestre — criador de cursos digitais brasileiro.
-Estilo visual: moderno, minimalista, dark, ousado, cores da marca (preto #0A0A0A, verde limao #CCFF00, branco).
+
+ESTILO VISUAL OBRIGATORIO (baseado nos templates BrandsDecoded):
+- Estetica FUTURISTA e TECH: visual clean, premium, high-end digital
+- Fundo predominantemente preto profundo (#0A0A0A) com gradientes sutis escuros
+- Destaque verde limao neon (#CCFF00) como cor de acento — usado em highlights, bordas, glows
+- Branco (#FFFFFF) para elementos secundarios e contraste
+- Elementos visuais: formas geometricas abstratas, linhas finas luminosas, grids tech, patterns de circuito
+- Efeitos: glow neon sutil, glassmorphism, gradientes escuros, reflexos metalicos
+- Composicao: layouts assimetricos modernos, bastante espaco negativo, hierarquia visual forte
+- Mood: futurista, sofisticado, tech, inovador, premium
+- Inspiracao: design de interfaces futuristas, dashboards tech, estetica cyberpunk refinada
+- SEM texto renderizado na imagem (texto sera adicionado por cima no Canva)
 
 Voce precisa criar um PROMPT para geracao de imagem de IA baseado no conteudo do slide.
 Formato: ${formato === 'carrossel' ? 'Carrossel Instagram (1:1 ou 4:5)' : formato === 'single' ? 'Post unico Instagram (1:1)' : 'Reel Instagram (9:16)'}
@@ -289,11 +300,12 @@ ${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
 
 REGRAS:
 - O prompt deve ser em INGLES (para melhor resultado na geracao)
-- Descreva o estilo visual, composicao, cores, mood
-- Mencione que e para Instagram, profissional, alta qualidade
-- NAO inclua texto na imagem
+- Descreva o estilo visual BrandsDecoded futurista: composicao, cores escuras, glow neon verde, mood tech
+- Mencione que e para Instagram, profissional, alta qualidade, 4K
+- NAO inclua texto na imagem — apenas elementos visuais e graficos
 - Sem marcas d'agua
-- Adapte o visual ao tipo de slide (hook = impactante, dados = infografico, CTA = call to action visual)
+- Adapte o visual ao tipo de slide (hook = impactante com glow forte, dados = infografico tech, CTA = call to action visual com destaque neon)
+- Sempre inclua: "dark futuristic tech aesthetic, black background (#0A0A0A), neon lime green (#CCFF00) accents, geometric shapes, subtle glow effects"
 
 ${context ? `Contexto do post completo:\n${context}\n` : ''}
 
@@ -364,11 +376,25 @@ Referencia: numeros especificos > afirmacoes genericas. Mostra o processo que ge
 
   noticias: `Voce esta criando conteudo para o pilar NOTICIAS do Instagram @ojoaonetocp (Infomestre).
 Estilo: jornalistico mas opinativo, analise de mercado, tendencias de IA e marketing digital.
-Tom: informado, analitico, conecta a noticia com oportunidade pratica.
-Objetivo: posicionar como autoridade em noticias do mercado digital e IA, sempre conectando com oportunidades para infoprodutores.
-Exemplos de angulos: lancamentos de IA, mudancas em plataformas (Meta, Google, OpenAI), regulamentacoes, tendencias.
+Tom: informado, analitico, conecta a noticia com oportunidade pratica para infoprodutores.
+Objetivo: posicionar como autoridade em noticias do mercado digital e IA, sempre conectando com oportunidades praticas.
+
+FONTES DE REFERENCIA OBRIGATORIAS (busque informacoes reais e atuais):
+- Tech global: TechCrunch, Wired, The Verge, VentureBeat, Ars Technica, CNET, Engadget, ZDNet
+- IA especializado: Artificial Intelligence News, IA Brasil Noticias
+- Negocios/financeiro: InfoMoney, Exame, CNN Brasil (secao IA)
+- Tech BR: Canaltech, IT Forum
+- Newsletters de IA: TLDR AI, AI Breakfast, Superhuman AI, Mindstream
+
 Referencia estilo: @hollyfield.ia — noticias de IA traduzidas para oportunidades praticas.
-Sempre inclua: fonte da noticia, impacto pratico, e o que o infoprodutor deve fazer.`,
+
+REGRAS ESPECIFICAS:
+- Sempre cite a FONTE real da noticia (ex: "Segundo o TechCrunch...", "De acordo com a Wired...")
+- Traga NOTICIAS REAIS e RECENTES sobre o tema solicitado
+- Conecte cada noticia com impacto pratico para infoprodutores brasileiros
+- Mostre o que o infoprodutor deve fazer AGORA com base na noticia
+- Combine: 1 fonte de noticias rapidas + 1 analise profunda + impacto pratico
+- Use dados, numeros e fatos concretos sempre que possivel`,
 };
 
 app.post('/api/generate-slides-content', async (req, res) => {
@@ -423,15 +449,23 @@ Retorne um JSON com:
 
 Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
 
+    // Build request body — add Google Search grounding for "noticias" pilar
+    const requestBody = {
+      contents: [{ parts: [{ text: systemPrompt }] }],
+      generationConfig: { responseMimeType: 'application/json' },
+    };
+
+    // Enable Google Search grounding for noticias to get real, current news
+    if (pilar === 'noticias') {
+      requestBody.tools = [{ googleSearch: {} }];
+    }
+
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: { responseMimeType: 'application/json' },
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
@@ -447,6 +481,18 @@ Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slid
         slides: result.slides || [],
       });
     } catch {
+      // If grounding returns non-JSON, try to extract JSON from the response
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const result = JSON.parse(jsonMatch[0]);
+          return res.json({
+            hook: result.hook || input,
+            caption: result.caption || '',
+            slides: result.slides || [],
+          });
+        } catch {}
+      }
       res.json({ hook: input, caption: '', slides: [] });
     }
   } catch (err) {
@@ -472,7 +518,7 @@ app.post('/api/generate-slides-images', async (req, res) => {
       continue;
     }
 
-    const enhancedPrompt = `Imagem para slide ${i + 1} de carrossel Instagram da marca Infomestre (criador de cursos digitais brasileiro). Cores da marca: fundo preto escuro (#0A0A0A), destaque verde limão neon (#CCFF00), tipografia branca em negrito. Estilo moderno, minimalista e ousado. ${slide.image_prompt}. Alta qualidade, profissional. Sem marcas d'água. Sem texto na imagem. Contexto brasileiro.`;
+    const enhancedPrompt = `Slide ${i + 1} of Instagram carousel for Infomestre brand. Style: dark futuristic tech aesthetic inspired by BrandsDecoded templates. Deep black background (#0A0A0A), neon lime green (#CCFF00) accent glows and highlights, white secondary elements. Visual elements: abstract geometric shapes, thin luminous lines, tech grid patterns, circuit-like patterns. Effects: subtle neon glow, glassmorphism, dark gradients, metallic reflections. Composition: modern asymmetric layout, strong visual hierarchy, ample negative space. ${slide.image_prompt}. Professional, high-quality, 4K. No text, no watermarks. No rendered typography.`;
 
     try {
       // Try Imagen 4.0
