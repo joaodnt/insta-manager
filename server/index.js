@@ -63,7 +63,7 @@ app.post('/api/generate-image', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada.' });
 
-  const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand colors: dark black background (#0A0A0A), neon lime green accent (#CCFF00), bold white typography. Modern minimalist bold style. ${prompt}. High quality photorealistic or illustration. No watermarks. No text on image.`;
+  const enhancedPrompt = `Imagem para post de Instagram da marca Infomestre (criador de cursos digitais brasileiro). Cores da marca: fundo preto escuro (#0A0A0A), destaque verde limão neon (#CCFF00), tipografia branca em negrito. Estilo moderno, minimalista e ousado. ${prompt}. Alta qualidade, fotorrealista ou ilustração. Sem marcas d'água. Sem texto na imagem. Contexto brasileiro.`;
 
   // Try Imagen 4.0 first (predict endpoint)
   try {
@@ -138,19 +138,24 @@ app.post('/api/rewrite-copy', async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada.' });
 
   try {
-    const systemPrompt = `Você é um copywriter especialista em conteúdo para Instagram de infoprodutos digitais no Brasil.
-Marca: Infomestre — criador de cursos digitais brasileiro.
-Tom: direto, provocador, moderno, sem enrolação.
-Formato: ${formato === 'reel' ? 'Reel (vídeo curto, script falado)' : formato === 'carrossel' ? 'Carrossel (texto por slides)' : 'Post single (legenda única)'}
+    const systemPrompt = `Voce e um copywriter especialista em conteudo para Instagram de infoprodutos digitais no Brasil.
+Marca: Infomestre — criador de cursos digitais brasileiro, liderado por Joao Neto.
+Tom: direto, provocador, moderno, sem enrolacao. Portugues brasileiro informal.
+Formato: ${formato === 'reel' ? 'Reel (video curto, script falado em portugues BR)' : formato === 'carrossel' ? 'Carrossel (texto por slides em portugues BR)' : 'Post single (legenda unica em portugues BR)'}
 
-${references ? `Use estas referências de estilo como inspiração (NÃO copie, apenas absorva o tom e estrutura):\n---\n${references}\n---` : ''}
+REGRAS OBRIGATORIAS:
+- Tudo em PORTUGUES BRASILEIRO (PT-BR)
+- Linguagem conversacional brasileira real (nao de Portugal)
+- Use girias e expressoes brasileiras quando fizer sentido
+- Hook matador nos primeiros 3 segundos
+- CTA claro e direto
+- Sem cliches batidos
+- Paragrafos curtos (maximo 2 linhas cada)
+- Emojis com moderacao (maximo 3)
 
-Reescreva a copy abaixo mantendo a mesma ideia central mas melhorando:
-- Hook mais forte (primeiros 3 seg)
-- CTA claro
-- Linguagem conversacional brasileira
-- Sem clichês
-- Quebre em parágrafos curtos
+${references ? `Use estas referencias de estilo como inspiracao (NAO copie, apenas absorva o tom e estrutura):\n---\n${references}\n---` : ''}
+
+Reescreva a copy abaixo mantendo a mesma ideia central mas melhorando tudo.
 
 Retorne no formato JSON: { "hook": "...", "caption": "..." }`;
 
