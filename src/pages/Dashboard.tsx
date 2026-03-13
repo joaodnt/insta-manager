@@ -431,9 +431,9 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
   );
 }
 
-// ── New post modal ────────────────────────────────────────
+// ── New post modal (simplified — opens full editor after creation) ──
 function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Post) => void }) {
-  const [form, setForm] = useState({ hook: '', caption: '', pilar: 'bastidores' as Pilar, formato: 'reel' as Formato, scheduled_date: '', image_prompt: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
+  const [form, setForm] = useState({ hook: '', pilar: 'bastidores' as Pilar, formato: 'reel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
   const [loading, setLoading] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -483,22 +483,16 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Hook</label>
           <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-            placeholder="A frase que para o scroll..." value={form.hook} onChange={e => set('hook', e.target.value)} />
+            placeholder="A frase que para o scroll..." value={form.hook} onChange={e => set('hook', e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
         </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Caption</label>
-          <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={inputStyle}
-            rows={4} value={form.caption} onChange={e => set('caption', e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Prompt da imagem</label>
-          <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-            placeholder="Descreva a imagem para gerar com IA..." value={form.image_prompt} onChange={e => set('image_prompt', e.target.value)} />
-        </div>
+        <p className="text-xs" style={{ color: '#555' }}>
+          Preencha o basico e clique em criar — o editor completo abrira em seguida.
+        </p>
         <button onClick={submit} disabled={loading}
           className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
           style={{ background: '#CCFF00', color: '#0A0A0A' }}>
-          {loading ? 'Criando...' : 'Criar Post'}
+          {loading ? 'Criando...' : 'Criar e Editar'}
         </button>
       </div>
     </div>
