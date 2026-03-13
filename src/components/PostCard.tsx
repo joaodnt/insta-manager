@@ -43,27 +43,10 @@ export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
       style={{ background: '#111111', border: '1px solid rgba(255,255,255,0.06)' }}
       onClick={() => onOpen(post)}>
 
-      {/* Image / Video area */}
-      <div className="relative overflow-hidden" style={{ background: '#0A0A0A', aspectRatio: '4/5' }}>
-        {isReel ? (
-          post.video_url ? (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ background: '#0A0A0A' }}>
-              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#CCFF00' }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="#0A0A0A"><polygon points="6 3 20 12 6 21" /></svg>
-              </div>
-              <span className="text-xs" style={{ color: '#666' }}>Video vinculado</span>
-            </div>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <polygon points="10 8 16 12 10 16" fill="#333" opacity="0.3" />
-              </svg>
-              <span className="text-xs" style={{ color: '#444' }}>Sem video</span>
-            </div>
-          )
-        ) : (
-          imgSrc ? (
+      {/* Image area — only for non-Reel formats */}
+      {!isReel ? (
+        <div className="relative overflow-hidden" style={{ background: '#0A0A0A', aspectRatio: '4/5' }}>
+          {imgSrc ? (
             <img src={imgSrc} alt={post.hook} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
@@ -73,11 +56,7 @@ export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
               </svg>
               <span className="text-xs" style={{ color: '#444' }}>Sem imagem</span>
             </div>
-          )
-        )}
-
-        {/* Overlay on hover — only for image formats */}
-        {!isReel && (
+          )}
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
             <button onClick={genImage} disabled={loading}
               className="text-xs px-3 py-1.5 rounded font-medium transition-colors disabled:opacity-50"
@@ -86,13 +65,22 @@ export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
               {loading ? 'Gerando...' : imgSrc ? 'Gerar nova' : 'Gerar imagem'}
             </button>
           </div>
-        )}
-
-        {/* Format badge top-right */}
-        <div className="absolute top-2 right-2">
+          <div className="absolute top-2 right-2">
+            <FormatoBadge formato={post.formato} />
+          </div>
+        </div>
+      ) : (
+        /* Reel: compact header with format badge only */
+        <div className="relative px-3 pt-3 pb-1 flex items-center justify-between" style={{ background: '#0A0A0A' }}>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#CCFF00' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="#0A0A0A"><polygon points="6 3 20 12 6 21" /></svg>
+            </div>
+            <span className="text-xs font-semibold" style={{ color: '#CCFF00' }}>Reel</span>
+          </div>
           <FormatoBadge formato={post.formato} />
         </div>
-      </div>
+      )}
 
       {/* Info */}
       <div className="p-3">

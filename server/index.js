@@ -259,6 +259,114 @@ Retorne no formato JSON: { "rewritten": "..." }`;
   }
 });
 
+// ── Export to DOCX (Google Docs compatible) ─────────────────
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = require('docx');
+
+app.get('/api/posts/:id/export-doc', async (req, res) => {
+  const post = db.findById(req.params.id);
+  if (!post) return res.status(404).json({ error: 'Post nao encontrado' });
+
+  const isReel = post.formato === 'reel';
+  const pilarLabels = {
+    'bastidores': 'Bastidores', 'sistemas': 'Sistemas', 'ia-aplicada': 'IA Aplicada',
+    'provocacao': 'Provocacao', 'resultado': 'Resultado'
+  };
+  const formatoLabels = { 'reel': 'Reel', 'carrossel': 'Carrossel', 'single': 'Post Unico' };
+
+  const children = [
+    // Title
+    new Paragraph({
+      children: [new TextRun({ text: 'INFOMESTRE', bold: true, size: 32, color: '8BC34A', font: 'Arial' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 100 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Conteudo Instagram — ${formatoLabels[post.formato] || post.formato}`, size: 20, color: '666666', font: 'Arial' })],
+      alignment: AlignmentType.CENTER, spacing: { after: 300 },
+    }),
+    // Metadata
+    new Paragraph({
+      children: [
+        new TextRun({ text: 'Pilar: ', bold: true, size: 20, font: 'Arial' }),
+        new TextRun({ text: pilarLabels[post.pilar] || post.pilar, size: 20, font: 'Arial' }),
+        new TextRun({ text: '   |   Formato: ', bold: true, size: 20, font: 'Arial' }),
+        new TextRun({ text: formatoLabels[post.formato] || post.formato, size: 20, font: 'Arial' }),
+        ...(post.scheduled_date ? [
+          new TextRun({ text: '   |   Data: ', bold: true, size: 20, font: 'Arial' }),
+          new TextRun({ text: post.scheduled_date, size: 20, font: 'Arial' }),
+        ] : []),
+      ],
+      spacing: { after: 300 },
+    }),
+    // Separator
+    new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' } }, spacing: { after: 300 } }),
+  ];
+
+  // Hook
+  children.push(
+    new Paragraph({ text: 'HOOK', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    new Paragraph({ children: [new TextRun({ text: post.hook || '(vazio)', size: 22, font: 'Arial' })], spacing: { after: 200 } }),
+  );
+
+  if (isReel) {
+    // Corpo
+    children.push(
+      new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' } }, spacing: { after: 200 } }),
+      new Paragraph({ text: 'CORPO DO SCRIPT', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    );
+    (post.corpo || '(vazio)').split('\n').forEach(line => {
+      children.push(new Paragraph({ children: [new TextRun({ text: line, size: 22, font: 'Arial' })], spacing: { after: 80 } }));
+    });
+
+    // CTA
+    children.push(
+      new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' } }, spacing: { after: 200 } }),
+      new Paragraph({ text: 'CTA (CHAMADA PARA ACAO)', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    );
+    (post.cta || '(vazio)').split('\n').forEach(line => {
+      children.push(new Paragraph({ children: [new TextRun({ text: line, size: 22, font: 'Arial' })], spacing: { after: 80 } }));
+    });
+  } else {
+    // Caption
+    children.push(
+      new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' } }, spacing: { after: 200 } }),
+      new Paragraph({ text: 'CAPTION', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+    );
+    (post.caption || '(vazio)').split('\n').forEach(line => {
+      children.push(new Paragraph({ children: [new TextRun({ text: line, size: 22, font: 'Arial' })], spacing: { after: 80 } }));
+    });
+  }
+
+  // Hashtags
+  if (post.hashtags) {
+    children.push(
+      new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' } }, spacing: { after: 200 } }),
+      new Paragraph({ text: 'HASHTAGS', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+      new Paragraph({ children: [new TextRun({ text: post.hashtags, size: 20, color: '4A90D9', font: 'Arial' })], spacing: { after: 200 } }),
+    );
+  }
+
+  // Notes
+  if (post.notes) {
+    children.push(
+      new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' } }, spacing: { after: 200 } }),
+      new Paragraph({ text: 'NOTAS INTERNAS', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }),
+      new Paragraph({ children: [new TextRun({ text: post.notes, size: 20, italics: true, color: '999999', font: 'Arial' })], spacing: { after: 200 } }),
+    );
+  }
+
+  const doc = new Document({
+    sections: [{ children }],
+    creator: 'Infomestre - Insta Manager',
+    title: `Copy - ${post.hook ? post.hook.substring(0, 50) : 'Post'}`,
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  const safeName = (post.hook || 'post').replace(/[^a-zA-Z0-9\s]/g, '').trim().replace(/\s+/g, '-').substring(0, 40);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="infomestre-${safeName}.docx"`);
+  res.send(buffer);
+});
+
 // ── Settings ──────────────────────────────────────────────
 app.get('/api/settings', (req, res) => {
   res.json(db.getSettings());
