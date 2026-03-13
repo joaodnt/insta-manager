@@ -370,7 +370,6 @@ Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "u
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: { responseMimeType: 'application/json' },
           tools: [{ googleSearch: {} }],
         }),
       }
@@ -379,20 +378,19 @@ Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "u
     const data = await apiRes.json();
     if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    try {
-      const result = JSON.parse(text);
-      res.json({ news: result.news || [] });
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const result = JSON.parse(jsonMatch[0]);
-          return res.json({ news: result.news || [] });
-        } catch {}
-      }
-      res.json({ news: [] });
+    // Google Search grounding returns text (not structured JSON), so extract JSON from it
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const text = parts.map(p => p.text || '').join('');
+    // Try to find JSON in the response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0]);
+        return res.json({ news: result.news || [] });
+      } catch {}
     }
+    // If no valid JSON, try to parse structured news from text
+    res.json({ news: [] });
   } catch (err) {
     console.error('Fetch news error:', err.message);
     res.status(500).json({ error: err.message });
@@ -529,15 +527,16 @@ Retorne um JSON com:
 
 Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
 
-    // Build request body — add Google Search grounding for "noticias" pilar
+    // Build request body — Google Search grounding for "noticias" pilar
+    // NOTE: responseMimeType: 'application/json' is NOT compatible with googleSearch tools
+    const useGrounding = pilar === 'noticias';
     const requestBody = {
       contents: [{ parts: [{ text: systemPrompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
     };
-
-    // Enable Google Search grounding for noticias to get real, current news
-    if (pilar === 'noticias') {
+    if (useGrounding) {
       requestBody.tools = [{ googleSearch: {} }];
+    } else {
+      requestBody.generationConfig = { responseMimeType: 'application/json' };
     }
 
     const apiRes = await fetch(
@@ -552,7 +551,9 @@ Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slid
     const data = await apiRes.json();
     if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    // Grounding may return multiple text parts, concatenate them
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const text = parts.map(p => p.text || '').join('');
     try {
       const result = JSON.parse(text);
       res.json({
