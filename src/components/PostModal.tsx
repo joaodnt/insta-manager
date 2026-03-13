@@ -221,29 +221,65 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   const [loading, setLoading] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [contentGenLoading, setContentGenLoading] = useState(false);
   const [batchAspect, setBatchAspect] = useState('1:1');
   const [saved, setSaved] = useState(false);
+  const [autoGenTriggered, setAutoGenTriggered] = useState(false);
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+
+  // Auto-generate content for new carousel posts
+  const generateSlidesContent = async (pilar: string, hook: string, currentSlides: Slide[], formato: string) => {
+    if (!hook.trim()) return;
+    setContentGenLoading(true);
+    try {
+      const { slides: generated } = await api.generateSlidesContent({
+        pilar,
+        hook,
+        slides: currentSlides.map(s => ({ label: s.label })),
+        formato,
+      });
+      // Merge generated content into slides
+      const next = currentSlides.map(slide => {
+        const match = generated.find(g => g.label === slide.label);
+        return match ? { ...slide, content: match.content } : slide;
+      });
+      setForm(f => ({ ...f, slides: next }));
+    } catch (err: any) {
+      console.error('Erro ao gerar conteudo:', err.message);
+    } finally {
+      setContentGenLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (post) {
       const p = { ...post };
+      let shouldAutoGen = false;
       // Initialize slides for carousel if empty — use pilar-specific presets
       if (p.formato === 'carrossel' && (!p.slides || p.slides.length === 0)) {
         const defaultSlides = getDefaultSlidesForPilar(p.pilar);
-        // Pre-fill hook content in first slide and CTA in last
-        if (defaultSlides.length > 0 && p.hook) {
-          defaultSlides[0].content = p.hook;
-        }
-        if (defaultSlides.length > 1 && p.caption) {
-          const lastLine = p.caption.split('\n').pop() || '';
-          defaultSlides[defaultSlides.length - 1].content = lastLine;
-        }
         p.slides = defaultSlides;
+        // Auto-generate content if post has a hook (newly created)
+        if (p.hook && p.hook.trim()) {
+          shouldAutoGen = true;
+        }
       }
       setForm(p);
+      setAutoGenTriggered(false);
+      // Trigger auto-gen after state is set
+      if (shouldAutoGen) {
+        setTimeout(() => setAutoGenTriggered(true), 100);
+      }
     }
   }, [post]);
+
+  // Auto-generate content when triggered
+  useEffect(() => {
+    if (autoGenTriggered && form.pilar && form.hook && form.slides && form.slides.length > 0) {
+      generateSlidesContent(form.pilar, form.hook, form.slides as Slide[], form.formato || 'carrossel');
+      setAutoGenTriggered(false);
+    }
+  }, [autoGenTriggered]);
 
   if (!post) return null;
 
@@ -548,20 +584,41 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={batchGenPrompts} disabled={batchLoading}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => generateSlidesContent(form.pilar || post.pilar, form.hook || post.hook, slides, form.formato || post.formato)}
+                      disabled={contentGenLoading || batchLoading}
+                      className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+                      style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+                      <span style={{ fontSize: '8px', fontWeight: 800, background: '#0A0A0A', color: '#CCFF00', borderRadius: '3px', padding: '1px 4px' }}>IA</span>
+                      {contentGenLoading ? 'Gerando textos...' : 'Gerar conteudo'}
+                    </button>
+                    <button onClick={batchGenPrompts} disabled={batchLoading || contentGenLoading}
                       className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
                       style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
                       <span style={{ fontSize: '8px', fontWeight: 800 }}>IA</span>
-                      {batchLoading ? 'Gerando...' : 'Gerar todos os prompts'}
+                      {batchLoading ? 'Gerando...' : 'Gerar prompts'}
                     </button>
-                    <button onClick={batchGenerate} disabled={batchLoading}
+                    <button onClick={batchGenerate} disabled={batchLoading || contentGenLoading}
                       className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
-                      style={{ background: '#CCFF00', color: '#0A0A0A' }}>
-                      {batchLoading ? 'Gerando...' : 'Gerar todas as imagens'}
+                      style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
+                      {batchLoading ? 'Gerando...' : 'Gerar imagens'}
                     </button>
                   </div>
                 </div>
+
+                {/* Content generation loading overlay */}
+                {contentGenLoading && (
+                  <div className="rounded-lg p-4 text-center space-y-2" style={{ background: '#111', border: '1px solid #CCFF0033' }}>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 rounded-full animate-pulse" style={{ background: '#CCFF00' }} />
+                      <span className="text-sm font-semibold" style={{ color: '#CCFF00' }}>Gerando conteudo com IA...</span>
+                    </div>
+                    <p className="text-xs" style={{ color: '#666' }}>
+                      A IA esta escrevendo o conteudo de cada slide baseado no pilar "{PILAR_CFG[(form.pilar || post.pilar) as keyof typeof PILAR_CFG]?.label}" e no hook do post.
+                    </p>
+                  </div>
+                )}
 
                 {/* Slides */}
                 <div className="space-y-3">

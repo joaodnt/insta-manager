@@ -325,6 +325,116 @@ Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
   }
 });
 
+// ── Generate all slide TEXT content with AI (pilar-specific) ─────
+const PILAR_PROMPTS = {
+  bastidores: `Voce esta criando conteudo para o pilar BASTIDORES do Instagram @ojoaonetocp (Infomestre).
+Estilo: autenticidade crua, vulnerabilidade, mostra o processo real sem glamour.
+Tom: pessoal, honesto, como se estivesse falando com um amigo.
+Objetivo: conectar mostrando os bastidores reais de construir um negocio digital.
+Exemplos de angulos: rotina real, erros cometidos, decisoes dificeis, momentos de duvida, vitorias pequenas.
+Referencia: mostra o lado humano do empreendedor, nao o lado perfeito.`,
+
+  sistemas: `Voce esta criando conteudo para o pilar SISTEMAS do Instagram @ojoaonetocp (Infomestre).
+Estilo: tecnico mas acessivel, passo a passo pratico, foco em automacao.
+Tom: professor pratico, direto, mostra o caminho.
+Objetivo: ensinar sistemas e automacoes que fazem o negocio rodar sozinho.
+Exemplos de angulos: funis perpetuos, automacoes de e-mail, checkout otimizado, suporte com IA, fluxos automaticos.
+Referencia: cada slide deve ensinar algo aplicavel imediatamente.`,
+
+  'ia-aplicada': `Voce esta criando conteudo para o pilar IA APLICADA do Instagram @ojoaonetocp (Infomestre).
+Estilo: tutorial pratico, demonstracao de ferramentas, prompts prontos.
+Tom: entusiasmado com tecnologia, mas pratico e focado em resultado.
+Objetivo: mostrar como usar IA no dia a dia do infoproduto para economizar tempo e dinheiro.
+Exemplos de angulos: ferramentas de IA, prompts para copy, automacao com ChatGPT, geracao de conteudo, analise com IA.
+Referencia: sempre incluir o nome da ferramenta e como usar na pratica.`,
+
+  provocacao: `Voce esta criando conteudo para o pilar PROVOCACAO do Instagram @ojoaonetocp (Infomestre).
+Estilo: controverso, desafiador, questiona o senso comum do mercado.
+Tom: provocador, ousado, sem medo de incomodar. Fala verdades que ninguem fala.
+Objetivo: gerar debate, engajamento e fazer as pessoas repensarem suas crencas.
+Exemplos de angulos: mitos do mercado digital, erros que todo mundo comete, verdades incomodas, comparacoes brutais.
+Referencia: cada slide deve gerar uma reacao emocional — raiva, concordancia ou reflexao.`,
+
+  resultado: `Voce esta criando conteudo para o pilar RESULTADO do Instagram @ojoaonetocp (Infomestre).
+Estilo: orientado a dados, provas concretas, transparencia total.
+Tom: confiante mas humilde, mostra numeros reais sem exagero.
+Objetivo: provar que o metodo funciona com resultados reais e metricas.
+Exemplos de angulos: faturamento, conversao, ROI, depoimentos, prints de dashboard, antes vs depois.
+Referencia: numeros especificos > afirmacoes genericas. Mostra o processo que gerou o resultado.`,
+
+  noticias: `Voce esta criando conteudo para o pilar NOTICIAS do Instagram @ojoaonetocp (Infomestre).
+Estilo: jornalistico mas opinativo, analise de mercado, tendencias de IA e marketing digital.
+Tom: informado, analitico, conecta a noticia com oportunidade pratica.
+Objetivo: posicionar como autoridade em noticias do mercado digital e IA, sempre conectando com oportunidades para infoprodutores.
+Exemplos de angulos: lancamentos de IA, mudancas em plataformas (Meta, Google, OpenAI), regulamentacoes, tendencias.
+Referencia estilo: @hollyfield.ia — noticias de IA traduzidas para oportunidades praticas.
+Sempre inclua: fonte da noticia, impacto pratico, e o que o infoprodutor deve fazer.`,
+};
+
+app.post('/api/generate-slides-content', async (req, res) => {
+  const { pilar, hook, slides, formato } = req.body;
+  if (!pilar || !hook || !slides) return res.status(400).json({ error: 'pilar, hook e slides obrigatorios' });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  const pilarContext = PILAR_PROMPTS[pilar] || PILAR_PROMPTS['bastidores'];
+  const slideLabels = slides.map((s, i) => `Slide ${i + 1}: ${s.label}`).join('\n');
+
+  try {
+    const systemPrompt = `Voce e um copywriter e estrategista de conteudo do Instagram @ojoaonetocp — marca Infomestre.
+Criador: Joao Neto, infoprodutor brasileiro que ensina a criar e automatizar infoprodutos com IA.
+
+${pilarContext}
+
+REGRAS OBRIGATORIAS:
+- Tudo em PORTUGUES BRASILEIRO (PT-BR) natural e conversacional
+- Linguagem informal brasileira real (nao de Portugal)
+- Paragrafos curtos (maximo 2 linhas)
+- Cada slide deve ter entre 2 a 5 linhas de conteudo
+- O slide do Hook deve ser impactante e curto (1-2 linhas)
+- O slide do CTA deve ter chamada clara para acao (seguir, salvar, comentar, link na bio)
+- Sem emojis excessivos (maximo 1 por slide)
+- Sem cliches batidos
+- Formato: ${formato === 'carrossel' ? 'Carrossel Instagram — texto visual para cada slide' : 'Post Instagram'}
+- O conteudo deve fluir naturalmente de um slide para o proximo
+
+O HOOK do post e: "${hook}"
+
+Voce precisa gerar o CONTEUDO TEXTUAL para cada slide abaixo:
+${slideLabels}
+
+Retorne um JSON com array "slides" onde cada item tem "label" (exatamente como fornecido) e "content" (o texto gerado).
+Exemplo: { "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
+
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+      const result = JSON.parse(text);
+      res.json({ slides: result.slides || [] });
+    } catch {
+      res.json({ slides: [] });
+    }
+  } catch (err) {
+    console.error('Generate slides content error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Batch generate images for carousel slides ──────────────────
 app.post('/api/generate-slides-images', async (req, res) => {
   const { postId, slides, aspectRatio = '1:1' } = req.body;
