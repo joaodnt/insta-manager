@@ -580,8 +580,17 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
                 ))}
                 {loading && (
                   <div className="text-center py-3">
-                    <span className="text-xs" style={{ color: '#CCFF00' }}>Criando post...</span>
+                    <span className="text-xs" style={{ color: '#CCFF00' }}>Criando post e gerando conteudo...</span>
                   </div>
+                )}
+
+                {/* Buscar mais noticias */}
+                {!loading && (
+                  <button onClick={() => { setNewsLoading(true); setNewsList([]); api.fetchNews().then(({ news }) => { setNewsList(news); setNewsLoading(false); }).catch(() => { setNewsError('Erro ao buscar. Tente novamente.'); setNewsLoading(false); }); }}
+                    className="w-full py-2.5 rounded-lg text-xs font-semibold transition-colors mt-2 flex items-center justify-center gap-2"
+                    style={{ border: '1px solid #333', color: '#CCFF00' }}>
+                    🔄 Buscar mais noticias
+                  </button>
                 )}
               </div>
             )}

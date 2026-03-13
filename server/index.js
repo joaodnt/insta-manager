@@ -527,17 +527,12 @@ Retorne um JSON com:
 
 Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
 
-    // Build request body — Google Search grounding for "noticias" pilar
-    // NOTE: responseMimeType: 'application/json' is NOT compatible with googleSearch tools
-    const useGrounding = pilar === 'noticias';
+    // Always use structured JSON output — no grounding needed here
+    // (news info is already in the topic/hook from user selection)
     const requestBody = {
       contents: [{ parts: [{ text: systemPrompt }] }],
+      generationConfig: { responseMimeType: 'application/json' },
     };
-    if (useGrounding) {
-      requestBody.tools = [{ googleSearch: {} }];
-    } else {
-      requestBody.generationConfig = { responseMimeType: 'application/json' };
-    }
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -551,30 +546,32 @@ Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slid
     const data = await apiRes.json();
     if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
 
-    // Grounding may return multiple text parts, concatenate them
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const text = parts.map(p => p.text || '').join('');
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('generate-slides-content raw response length:', text.length);
     try {
       const result = JSON.parse(text);
       res.json({
-        hook: result.hook || input,
+        hook: result.hook || input || 'Post gerado com IA',
         caption: result.caption || '',
         slides: result.slides || [],
       });
-    } catch {
-      // If grounding returns non-JSON, try to extract JSON from the response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+    } catch (parseErr) {
+      console.error('JSON parse error, trying extraction...', parseErr.message);
+      // Try to extract JSON block from response
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*"slides"[\s\S]*\})/);
       if (jsonMatch) {
         try {
-          const result = JSON.parse(jsonMatch[0]);
+          const cleaned = jsonMatch[1] || jsonMatch[0];
+          const result = JSON.parse(cleaned);
           return res.json({
-            hook: result.hook || input,
+            hook: result.hook || input || 'Post gerado com IA',
             caption: result.caption || '',
             slides: result.slides || [],
           });
         } catch {}
       }
-      res.json({ hook: input, caption: '', slides: [] });
+      console.error('Could not extract JSON from response');
+      res.json({ hook: input || 'Post gerado com IA', caption: '', slides: [] });
     }
   } catch (err) {
     console.error('Generate slides content error:', err.message);
