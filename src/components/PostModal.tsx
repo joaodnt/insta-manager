@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Post } from '../types';
+import type { Post, Slide } from '../types';
 import { api } from '../api';
 import { PilarBadge, FormatoBadge } from './Badge';
 import { STATUS_CYCLE, STATUS_CFG, PILARES, FORMATOS, PILAR_CFG, FORMATO_CFG } from './config';
@@ -10,6 +10,25 @@ interface Props {
   onSave: (p: Post) => void;
   onDelete: (id: string) => void;
 }
+
+const ASPECT_RATIOS = [
+  { label: '1:1', value: '1:1', desc: 'Quadrado' },
+  { label: '4:5', value: '4:5', desc: 'Retrato' },
+  { label: '3:4', value: '3:4', desc: 'Retrato alt' },
+  { label: '9:16', value: '9:16', desc: 'Story/Reel' },
+  { label: '16:9', value: '16:9', desc: 'Paisagem' },
+];
+
+const DEFAULT_SLIDE_LABELS = [
+  'Hook — capa que para o scroll',
+  'Problema — dor do publico',
+  'Dados / Estatisticas',
+  'Storytelling — historia real',
+  'Solucao — o que fazer',
+  'Prova — resultado concreto',
+  'Passo a passo',
+  'CTA — chamada para acao',
+];
 
 function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
   section: string; content: string; context?: string; formato: string;
@@ -58,21 +77,191 @@ function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
   );
 }
 
+// ── Slide editor for Carousel ──────────────────────────────
+function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveUp, onMoveDown, postId }: {
+  slide: Slide; index: number; total: number; formato: string;
+  onUpdate: (s: Slide) => void; onRemove: () => void;
+  onMoveUp: () => void; onMoveDown: () => void; postId: string;
+}) {
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+  const imgSrc = slide.image_url ? BASE + slide.image_url : null;
+
+  const generatePrompt = async () => {
+    if (!slide.content.trim()) return alert('Escreva o conteudo do slide primeiro.');
+    setPromptLoading(true);
+    try {
+      const { prompt } = await api.generatePrompt({
+        slideLabel: slide.label,
+        slideContent: slide.content,
+        formato,
+      });
+      onUpdate({ ...slide, image_prompt: prompt });
+    } catch (err: any) {
+      alert('Erro ao gerar prompt: ' + err.message);
+    } finally {
+      setPromptLoading(false);
+    }
+  };
+
+  const generateImage = async () => {
+    if (!slide.image_prompt.trim()) return alert('Gere ou escreva um prompt primeiro.');
+    setImgLoading(true);
+    try {
+      const { url } = await api.generateImage(slide.image_prompt, `${postId}-slide-${index + 1}`);
+      onUpdate({ ...slide, image_url: url });
+    } catch (err: any) {
+      alert('Erro ao gerar imagem: ' + err.message);
+    } finally {
+      setImgLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+      {/* Slide header */}
+      <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid #1A1A1A' }}>
+        <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>{index + 1}</span>
+        <input type="text" className="flex-1 text-xs font-semibold bg-transparent outline-none"
+          style={{ color: '#CCFF00' }}
+          value={slide.label} onChange={e => onUpdate({ ...slide, label: e.target.value })}
+          placeholder="Nome do slide..." />
+        <div className="flex items-center gap-1">
+          {index > 0 && (
+            <button onClick={onMoveUp} className="w-5 h-5 rounded flex items-center justify-center text-xs" style={{ color: '#666' }} title="Mover para cima">↑</button>
+          )}
+          {index < total - 1 && (
+            <button onClick={onMoveDown} className="w-5 h-5 rounded flex items-center justify-center text-xs" style={{ color: '#666' }} title="Mover para baixo">↓</button>
+          )}
+          {total > 1 && (
+            <button onClick={onRemove} className="w-5 h-5 rounded flex items-center justify-center text-xs" style={{ color: '#EF4444' }} title="Remover slide">✕</button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex">
+        {/* Left: image preview */}
+        <div className="w-40 shrink-0 flex flex-col" style={{ borderRight: '1px solid #1A1A1A' }}>
+          <div className="relative" style={{ background: '#0A0A0A', aspectRatio: '1/1' }}>
+            {imgSrc ? (
+              <img src={imgSrc} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+                <span className="text-xs text-center" style={{ color: '#333', fontSize: '9px' }}>Sem imagem</span>
+              </div>
+            )}
+          </div>
+          {/* Aspect ratio selector */}
+          <div className="p-2 flex flex-wrap gap-1 justify-center">
+            {ASPECT_RATIOS.map(ar => (
+              <button key={ar.value} onClick={() => setAspectRatio(ar.value)}
+                className="text-xs px-1.5 py-0.5 rounded transition-colors"
+                style={aspectRatio === ar.value
+                  ? { background: '#CCFF00', color: '#0A0A0A', fontSize: '9px', fontWeight: 600 }
+                  : { color: '#555', border: '1px solid #222', fontSize: '9px' }}>
+                {ar.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: content + prompt */}
+        <div className="flex-1 p-3 space-y-2">
+          {/* Content */}
+          <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+            style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
+            rows={3} value={slide.content} onChange={e => onUpdate({ ...slide, content: e.target.value })}
+            placeholder="Conteudo do slide..." />
+
+          <SectionRewriteBtn
+            section="corpo" content={slide.content}
+            formato={formato}
+            onRewrite={text => onUpdate({ ...slide, content: text })} />
+
+          {/* Prompt area */}
+          <div className="space-y-1.5" style={{ borderTop: '1px solid #1A1A1A', paddingTop: '8px' }}>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium" style={{ color: '#666' }}>Prompt da imagem</label>
+              <button onClick={generatePrompt} disabled={promptLoading}
+                className="text-xs px-2 py-1 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1"
+                style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
+                <span style={{ fontSize: '8px', fontWeight: 800 }}>IA</span>
+                {promptLoading ? 'Gerando...' : 'Gerar prompt'}
+              </button>
+            </div>
+            <textarea className="w-full text-xs rounded p-2 resize-none outline-none"
+              style={{ background: '#0A0A0A', border: '1px solid #222', color: '#999' }}
+              rows={2} value={slide.image_prompt}
+              onChange={e => onUpdate({ ...slide, image_prompt: e.target.value })}
+              placeholder="Prompt para gerar a imagem deste slide..." />
+            <button onClick={generateImage} disabled={imgLoading || !slide.image_prompt.trim()}
+              className="w-full text-xs py-1.5 rounded-lg transition-colors disabled:opacity-30 font-semibold"
+              style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+              {imgLoading ? 'Gerando imagem...' : imgSrc ? 'Regerar imagem' : 'Gerar imagem'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   const [form, setForm] = useState<Partial<Post>>({});
   const [loading, setLoading] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchAspect, setBatchAspect] = useState('1:1');
   const [saved, setSaved] = useState(false);
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
   useEffect(() => {
-    if (post) setForm({ ...post });
+    if (post) {
+      const p = { ...post };
+      // Initialize slides for carousel if empty
+      if (p.formato === 'carrossel' && (!p.slides || p.slides.length === 0)) {
+        p.slides = [
+          { label: 'Hook — capa que para o scroll', content: p.hook || '', image_prompt: '', image_url: null },
+          { label: 'Problema — dor do publico', content: '', image_prompt: '', image_url: null },
+          { label: 'Solucao', content: '', image_prompt: '', image_url: null },
+          { label: 'CTA — chamada para acao', content: p.caption ? p.caption.split('\n').pop() || '' : '', image_prompt: '', image_url: null },
+        ];
+      }
+      setForm(p);
+    }
   }, [post]);
 
   if (!post) return null;
 
   const isReel = (form.formato || post.formato) === 'reel';
+  const isCarrossel = (form.formato || post.formato) === 'carrossel';
   const set = (k: keyof Post, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const slides: Slide[] = form.slides || [];
+  const setSlides = (newSlides: Slide[]) => set('slides', newSlides);
+  const updateSlide = (i: number, s: Slide) => {
+    const next = [...slides];
+    next[i] = s;
+    setSlides(next);
+  };
+  const removeSlide = (i: number) => setSlides(slides.filter((_, idx) => idx !== i));
+  const addSlide = () => {
+    const usedLabels = new Set(slides.map(s => s.label));
+    const nextLabel = DEFAULT_SLIDE_LABELS.find(l => !usedLabels.has(l)) || `Slide ${slides.length + 1}`;
+    setSlides([...slides, { label: nextLabel, content: '', image_prompt: '', image_url: null }]);
+  };
+  const moveSlide = (from: number, dir: number) => {
+    const next = [...slides];
+    const to = from + dir;
+    [next[from], next[to]] = [next[to], next[from]];
+    setSlides(next);
+  };
 
   const save = async () => {
     setLoading(true);
@@ -100,6 +289,61 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     }
   };
 
+  // Batch generate all slide images
+  const batchGenerate = async () => {
+    const slidesWithPrompt = slides.filter(s => s.image_prompt.trim());
+    if (slidesWithPrompt.length === 0) return alert('Gere os prompts dos slides primeiro.');
+    setBatchLoading(true);
+    try {
+      const { results } = await api.generateSlidesImages({
+        postId: post.id,
+        slides,
+        aspectRatio: batchAspect,
+      });
+      const next = [...slides];
+      for (const r of results) {
+        if (r.url && next[r.index]) {
+          next[r.index] = { ...next[r.index], image_url: r.url };
+        }
+      }
+      setSlides(next);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        alert(`${results.length - errors.length} imagens geradas. ${errors.length} com erro.`);
+      }
+    } catch (err: any) {
+      alert('Erro na geracao em lote: ' + err.message);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // Generate all prompts with AI
+  const batchGenPrompts = async () => {
+    const slidesWithContent = slides.filter(s => s.content.trim());
+    if (slidesWithContent.length === 0) return alert('Escreva o conteudo dos slides primeiro.');
+    setBatchLoading(true);
+    try {
+      const next = [...slides];
+      for (let i = 0; i < next.length; i++) {
+        if (!next[i].content.trim()) continue;
+        try {
+          const { prompt } = await api.generatePrompt({
+            slideLabel: next[i].label,
+            slideContent: next[i].content,
+            formato: form.formato || post.formato,
+          });
+          next[i] = { ...next[i], image_prompt: prompt };
+        } catch { /* skip failed */ }
+      }
+      setSlides(next);
+    } catch (err: any) {
+      alert('Erro ao gerar prompts: ' + err.message);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   const imgSrc = form.image_url ? BASE + form.image_url : null;
 
   // Build context string for AI section rewrite
@@ -117,7 +361,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col"
+      <div className={`rounded-xl shadow-2xl w-full ${isCarrossel ? 'max-w-5xl' : 'max-w-4xl'} max-h-[92vh] overflow-hidden flex flex-col`}
         style={{ background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}>
 
@@ -146,8 +390,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
         {/* Body */}
         <div className="flex flex-1 overflow-hidden">
 
-          {/* Left panel — only for non-Reel (image section) */}
-          {!isReel && (
+          {/* Left panel — only for single post (image section) */}
+          {!isReel && !isCarrossel && (
             <div className="w-72 shrink-0 flex flex-col" style={{ borderRight: '1px solid #1A1A1A' }}>
               <div className="flex-1 relative overflow-hidden" style={{ background: '#0A0A0A' }}>
                 {imgSrc ? (
@@ -227,7 +471,6 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
             {isReel ? (
               /* ═══ REEL: 3 script sections ═══ */
               <>
-                {/* Hook */}
                 <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>1</span>
@@ -237,14 +480,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                     style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
                     value={form.hook || ''} onChange={e => set('hook', e.target.value)}
                     placeholder="A frase que para o scroll..." />
-                  <SectionRewriteBtn
-                    section="hook" content={form.hook || ''}
-                    context={buildContext('hook')}
-                    formato={form.formato || post.formato}
-                    onRewrite={text => set('hook', text)} />
+                  <SectionRewriteBtn section="hook" content={form.hook || ''} context={buildContext('hook')} formato={form.formato || post.formato} onRewrite={text => set('hook', text)} />
                 </div>
-
-                {/* Corpo */}
                 <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>2</span>
@@ -255,14 +492,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                     rows={8} value={form.corpo || ''} onChange={e => set('corpo', e.target.value)}
                     placeholder="Desenvolva o conteudo principal do Reel..." />
                   <p className="text-xs text-right" style={{ color: '#444' }}>{(form.corpo || '').length} caracteres</p>
-                  <SectionRewriteBtn
-                    section="corpo" content={form.corpo || ''}
-                    context={buildContext('corpo')}
-                    formato={form.formato || post.formato}
-                    onRewrite={text => set('corpo', text)} />
+                  <SectionRewriteBtn section="corpo" content={form.corpo || ''} context={buildContext('corpo')} formato={form.formato || post.formato} onRewrite={text => set('corpo', text)} />
                 </div>
-
-                {/* CTA */}
                 <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>3</span>
@@ -272,29 +503,88 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                     style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
                     rows={3} value={form.cta || ''} onChange={e => set('cta', e.target.value)}
                     placeholder="Chamada para acao: seguir, salvar, comentar, clicar no link..." />
-                  <SectionRewriteBtn
-                    section="cta" content={form.cta || ''}
-                    context={buildContext('cta')}
-                    formato={form.formato || post.formato}
-                    onRewrite={text => set('cta', text)} />
+                  <SectionRewriteBtn section="cta" content={form.cta || ''} context={buildContext('cta')} formato={form.formato || post.formato} onRewrite={text => set('cta', text)} />
+                </div>
+              </>
+            ) : isCarrossel ? (
+              /* ═══ CARROSSEL: Slide-by-slide editor ═══ */
+              <>
+                {/* Batch actions bar */}
+                <div className="rounded-lg p-3 flex items-center justify-between flex-wrap gap-2" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold" style={{ color: '#CCFF00' }}>
+                      {slides.length} {slides.length === 1 ? 'slide' : 'slides'}
+                    </span>
+                    <span style={{ color: '#333' }}>|</span>
+                    <span className="text-xs" style={{ color: '#666' }}>Aspecto:</span>
+                    {ASPECT_RATIOS.map(ar => (
+                      <button key={ar.value} onClick={() => setBatchAspect(ar.value)}
+                        className="text-xs px-2 py-0.5 rounded transition-colors"
+                        style={batchAspect === ar.value
+                          ? { background: '#CCFF00', color: '#0A0A0A', fontWeight: 600 }
+                          : { color: '#555', border: '1px solid #222' }}>
+                        {ar.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={batchGenPrompts} disabled={batchLoading}
+                      className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+                      style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
+                      <span style={{ fontSize: '8px', fontWeight: 800 }}>IA</span>
+                      {batchLoading ? 'Gerando...' : 'Gerar todos os prompts'}
+                    </button>
+                    <button onClick={batchGenerate} disabled={batchLoading}
+                      className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+                      style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+                      {batchLoading ? 'Gerando...' : 'Gerar todas as imagens'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slides */}
+                <div className="space-y-3">
+                  {slides.map((slide, i) => (
+                    <SlideEditor
+                      key={i} slide={slide} index={i} total={slides.length}
+                      formato={form.formato || post.formato}
+                      postId={post.id}
+                      onUpdate={s => updateSlide(i, s)}
+                      onRemove={() => removeSlide(i)}
+                      onMoveUp={() => moveSlide(i, -1)}
+                      onMoveDown={() => moveSlide(i, 1)}
+                    />
+                  ))}
+                </div>
+
+                {/* Add slide button */}
+                <button onClick={addSlide}
+                  className="w-full py-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+                  style={{ border: '2px dashed #333', color: '#666' }}>
+                  + Adicionar slide
+                </button>
+
+                {/* Caption (legenda do carrossel) */}
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={labelStyle}>Legenda do carrossel</label>
+                  <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    style={inputStyle}
+                    rows={4} value={form.caption || ''} onChange={e => set('caption', e.target.value)}
+                    placeholder="Legenda que acompanha o carrossel no feed..." />
+                  <SectionRewriteBtn section="corpo" content={form.caption || ''} context={buildContext('caption')} formato={form.formato || post.formato} onRewrite={text => set('caption', text)} />
                 </div>
               </>
             ) : (
-              /* ═══ NON-REEL: Hook + Caption ═══ */
+              /* ═══ SINGLE: Hook + Caption ═══ */
               <>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={labelStyle}>Hook (primeiros 3 segundos)</label>
+                  <label className="block text-xs font-medium mb-1" style={labelStyle}>Hook</label>
                   <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none font-semibold"
                     style={inputStyle}
                     value={form.hook || ''} onChange={e => set('hook', e.target.value)}
                     placeholder="A frase que para o scroll..." />
-                  <SectionRewriteBtn
-                    section="hook" content={form.hook || ''}
-                    context={buildContext('hook')}
-                    formato={form.formato || post.formato}
-                    onRewrite={text => set('hook', text)} />
+                  <SectionRewriteBtn section="hook" content={form.hook || ''} context={buildContext('hook')} formato={form.formato || post.formato} onRewrite={text => set('hook', text)} />
                 </div>
-
                 <div>
                   <label className="block text-xs font-medium mb-1" style={labelStyle}>Caption completa</label>
                   <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
@@ -302,11 +592,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                     rows={8} value={form.caption || ''} onChange={e => set('caption', e.target.value)}
                     placeholder="Escreva a legenda completa do post..." />
                   <p className="text-xs mt-1 text-right" style={{ color: '#444' }}>{(form.caption || '').length} caracteres</p>
-                  <SectionRewriteBtn
-                    section="corpo" content={form.caption || ''}
-                    context={buildContext('caption')}
-                    formato={form.formato || post.formato}
-                    onRewrite={text => set('caption', text)} />
+                  <SectionRewriteBtn section="corpo" content={form.caption || ''} context={buildContext('caption')} formato={form.formato || post.formato} onRewrite={text => set('caption', text)} />
                 </div>
               </>
             )}
@@ -332,8 +618,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
             <div className="pt-3 flex items-center justify-between" style={{ borderTop: '1px solid #1A1A1A' }}>
               <button
                 onClick={() => {
-                  const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
-                  window.open(`${BASE}/api/posts/${post.id}/export-doc`, '_blank');
+                  const B = import.meta.env.DEV ? 'http://localhost:3001' : '';
+                  window.open(`${B}/api/posts/${post.id}/export-doc`, '_blank');
                 }}
                 className="text-xs px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 hover:opacity-90"
                 style={{ background: '#CCFF00', color: '#0A0A0A' }}>

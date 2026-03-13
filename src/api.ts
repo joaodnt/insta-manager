@@ -1,4 +1,4 @@
-import type { Post, Stats } from './types';
+import type { Post, Stats, Slide } from './types';
 
 const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -22,6 +22,10 @@ export const api = {
     req<{ hook: string; caption: string }>('/api/rewrite-copy', { method: 'POST', body: JSON.stringify(data) }),
   rewriteSection: (data: { section: string; content: string; context?: string; references?: string; formato: string }) =>
     req<{ rewritten: string }>('/api/rewrite-section', { method: 'POST', body: JSON.stringify(data) }),
+  generatePrompt: (data: { slideLabel: string; slideContent: string; context?: string; formato: string }) =>
+    req<{ prompt: string }>('/api/generate-prompt', { method: 'POST', body: JSON.stringify(data) }),
+  generateSlidesImages: (data: { postId: string; slides: Slide[]; aspectRatio: string }) =>
+    req<{ results: { index: number; url: string | null; error?: string }[] }>('/api/generate-slides-images', { method: 'POST', body: JSON.stringify(data) }),
   getSettings:   () => req<Record<string, string>>('/api/settings'),
   saveSettings:  (data: Record<string, string>) => req<{ ok: boolean }>('/api/settings', { method: 'POST', body: JSON.stringify(data) }),
 };

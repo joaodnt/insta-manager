@@ -2,6 +2,13 @@ export type Status = 'rascunho' | 'em-producao' | 'pronto' | 'agendado' | 'posta
 export type Pilar = 'bastidores' | 'sistemas' | 'ia-aplicada' | 'provocacao' | 'resultado';
 export type Formato = 'reel' | 'carrossel' | 'single';
 
+export interface Slide {
+  label: string;
+  content: string;
+  image_prompt: string;
+  image_url: string | null;
+}
+
 export interface Post {
   id: string;
   hook: string;
@@ -17,6 +24,7 @@ export interface Post {
   video_url: string | null;
   hashtags: string;
   notes: string;
+  slides: Slide[];
   created_at: string;
   updated_at: string;
 }

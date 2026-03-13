@@ -80,6 +80,7 @@ if (store.posts.length === 0) {
       cta: '',
       hashtags: '#infoproduto #automatizacao #IA #infomestre',
       notes: '',
+      slides: [],
       created_at: now,
       updated_at: now,
     });

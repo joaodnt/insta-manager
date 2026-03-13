@@ -30,16 +30,16 @@ app.get('/api/posts/:id', (req, res) => {
 });
 
 app.post('/api/posts', (req, res) => {
-  const { hook, caption, corpo, cta, pilar, formato, status, scheduled_date, image_url, image_prompt, video_url, hashtags, notes } = req.body;
+  const { hook, caption, corpo, cta, pilar, formato, status, scheduled_date, image_url, image_prompt, video_url, hashtags, notes, slides } = req.body;
   if (!hook || !pilar || !formato) return res.status(400).json({ error: 'hook, pilar e formato são obrigatórios' });
-  const post = db.insert({ hook, caption: caption || '', corpo: corpo || '', cta: cta || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '' });
+  const post = db.insert({ hook, caption: caption || '', corpo: corpo || '', cta: cta || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '', slides: slides || [] });
   res.status(201).json(post);
 });
 
 app.put('/api/posts/:id', (req, res) => {
   const post = db.findById(req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
-  const fields = ['hook','caption','corpo','cta','pilar','formato','status','scheduled_date','image_url','image_prompt','hashtags','notes','video_url'];
+  const fields = ['hook','caption','corpo','cta','pilar','formato','status','scheduled_date','image_url','image_prompt','hashtags','notes','video_url','slides'];
   const updates = {};
   for (const f of fields) if (req.body[f] !== undefined) updates[f] = req.body[f];
   res.json(db.update(req.params.id, updates));
@@ -268,6 +268,148 @@ Retorne no formato JSON: { "rewritten": "..." }`;
     console.error('Section rewrite error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Generate image prompt with AI ─────────────────────────────
+app.post('/api/generate-prompt', async (req, res) => {
+  const { slideLabel, slideContent, context, formato } = req.body;
+  if (!slideContent) return res.status(400).json({ error: 'slideContent obrigatorio' });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  try {
+    const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram de infoprodutos digitais no Brasil.
+Marca: Infomestre — criador de cursos digitais brasileiro.
+Estilo visual: moderno, minimalista, dark, ousado, cores da marca (preto #0A0A0A, verde limao #CCFF00, branco).
+
+Voce precisa criar um PROMPT para geracao de imagem de IA baseado no conteudo do slide.
+Formato: ${formato === 'carrossel' ? 'Carrossel Instagram (1:1 ou 4:5)' : formato === 'single' ? 'Post unico Instagram (1:1)' : 'Reel Instagram (9:16)'}
+${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
+
+REGRAS:
+- O prompt deve ser em INGLES (para melhor resultado na geracao)
+- Descreva o estilo visual, composicao, cores, mood
+- Mencione que e para Instagram, profissional, alta qualidade
+- NAO inclua texto na imagem
+- Sem marcas d'agua
+- Adapte o visual ao tipo de slide (hook = impactante, dados = infografico, CTA = call to action visual)
+
+${context ? `Contexto do post completo:\n${context}\n` : ''}
+
+Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
+
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo do slide:\n${slideContent}` }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API' });
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+      const result = JSON.parse(text);
+      res.json({ prompt: result.prompt || text });
+    } catch {
+      res.json({ prompt: text });
+    }
+  } catch (err) {
+    console.error('Generate prompt error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Batch generate images for carousel slides ──────────────────
+app.post('/api/generate-slides-images', async (req, res) => {
+  const { postId, slides, aspectRatio = '1:1' } = req.body;
+  if (!slides || !Array.isArray(slides)) return res.status(400).json({ error: 'slides obrigatorio' });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  const results = [];
+
+  for (let i = 0; i < slides.length; i++) {
+    const slide = slides[i];
+    if (!slide.image_prompt) {
+      results.push({ index: i, url: null, error: 'Sem prompt' });
+      continue;
+    }
+
+    const enhancedPrompt = `Imagem para slide ${i + 1} de carrossel Instagram da marca Infomestre (criador de cursos digitais brasileiro). Cores da marca: fundo preto escuro (#0A0A0A), destaque verde limão neon (#CCFF00), tipografia branca em negrito. Estilo moderno, minimalista e ousado. ${slide.image_prompt}. Alta qualidade, profissional. Sem marcas d'água. Sem texto na imagem. Contexto brasileiro.`;
+
+    try {
+      // Try Imagen 4.0
+      const imagenRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instances: [{ prompt: enhancedPrompt }],
+            parameters: { sampleCount: 1, aspectRatio },
+          }),
+        }
+      );
+      const imagenData = await imagenRes.json();
+      if (imagenRes.ok && imagenData.predictions?.[0]?.bytesBase64Encoded) {
+        const imageData = Buffer.from(imagenData.predictions[0].bytesBase64Encoded, 'base64');
+        const filename = `${postId || Date.now()}-slide-${i + 1}.png`;
+        fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
+        results.push({ index: i, url: `/images/${filename}` });
+        continue;
+      }
+
+      // Fallback to Nano Banana
+      const nbRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: enhancedPrompt }] }],
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+          }),
+        }
+      );
+      const nbData = await nbRes.json();
+      const parts = nbData.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData);
+      if (imagePart) {
+        const imageData = Buffer.from(imagePart.inlineData.data, 'base64');
+        const filename = `${postId || Date.now()}-slide-${i + 1}.png`;
+        fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
+        results.push({ index: i, url: `/images/${filename}` });
+      } else {
+        results.push({ index: i, url: null, error: 'Imagem nao retornada' });
+      }
+    } catch (err) {
+      console.error(`Slide ${i + 1} image error:`, err.message);
+      results.push({ index: i, url: null, error: err.message });
+    }
+  }
+
+  // Update post slides with generated URLs
+  if (postId) {
+    const post = db.findById(postId);
+    if (post && post.slides) {
+      const updatedSlides = [...(post.slides || [])];
+      for (const r of results) {
+        if (r.url && updatedSlides[r.index]) {
+          updatedSlides[r.index].image_url = r.url;
+        }
+      }
+      db.update(postId, { slides: updatedSlides });
+    }
+  }
+
+  res.json({ results });
 });
 
 // ── Export to DOCX (Google Docs compatible) ─────────────────
