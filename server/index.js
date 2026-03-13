@@ -50,6 +50,17 @@ app.delete('/api/posts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Bulk delete
+app.post('/api/posts/bulk-delete', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids obrigatorio' });
+  let deleted = 0;
+  for (const id of ids) {
+    if (db.remove(id)) deleted++;
+  }
+  res.json({ ok: true, deleted });
+});
+
 // ── Stats ─────────────────────────────────────────────────
 app.get('/api/stats', (req, res) => {
   res.json(db.stats());

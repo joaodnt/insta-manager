@@ -14,6 +14,7 @@ export const api = {
   createPost:  (data: Partial<Post>) => req<Post>('/api/posts', { method: 'POST', body: JSON.stringify(data) }),
   updatePost:  (id: string, data: Partial<Post>) => req<Post>(`/api/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePost:  (id: string) => req<{ ok: boolean }>(`/api/posts/${id}`, { method: 'DELETE' }),
+  bulkDelete:  (ids: string[]) => req<{ ok: boolean; deleted: number }>('/api/posts/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   getStats:    () => req<Stats>('/api/stats'),
   generateImage: (prompt: string, postId?: string) =>
     req<{ url: string; filename: string }>('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, postId }) }),

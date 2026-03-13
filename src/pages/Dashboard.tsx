@@ -16,6 +16,48 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showNew, setShowNew] = useState(false);
 
+  // Multi-select state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(p => p.id)));
+    }
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? Esta acao nao pode ser desfeita.`)) return;
+    setBulkDeleting(true);
+    try {
+      await api.bulkDelete(Array.from(selectedIds));
+      setPosts(prev => prev.filter(p => !selectedIds.has(p.id)));
+      api.getStats().then(s => setStats(s as any));
+      exitSelectMode();
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + err.message);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   // drag-and-drop state
   const dragPostId = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<Status | null>(null);
@@ -104,12 +146,48 @@ export default function Dashboard() {
           ))}
         </div>
 
+        <button onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+          className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+          style={selectMode
+            ? { background: '#CCFF00', color: '#0A0A0A' }
+            : { color: '#888', border: '1px solid #333' }}>
+          {selectMode ? 'Cancelar' : 'Selecionar'}
+        </button>
+
         <button onClick={() => setShowNew(true)}
           className="text-xs px-4 py-1.5 rounded-lg font-semibold transition-colors"
           style={{ background: '#CCFF00', color: '#0A0A0A' }}>
           + Novo Post
         </button>
       </header>
+
+      {/* Bulk actions bar */}
+      {selectMode && (
+        <div className="sticky top-12 z-30 flex items-center justify-between px-4 py-2"
+          style={{ background: '#111', borderBottom: '1px solid #1A1A1A' }}>
+          <div className="flex items-center gap-3">
+            <button onClick={selectAll}
+              className="text-xs px-3 py-1 rounded-md font-medium transition-colors"
+              style={{ color: '#CCFF00', border: '1px solid #333' }}>
+              {selectedIds.size === filtered.length && filtered.length > 0 ? 'Desmarcar todos' : 'Selecionar todos'}
+            </button>
+            <span className="text-xs" style={{ color: '#888' }}>
+              {selectedIds.size} {selectedIds.size === 1 ? 'post selecionado' : 'posts selecionados'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={bulkDelete} disabled={selectedIds.size === 0 || bulkDeleting}
+              className="text-xs px-4 py-1.5 rounded-lg font-semibold transition-colors disabled:opacity-30 flex items-center gap-1.5"
+              style={{ background: '#EF4444', color: '#FFF' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+              </svg>
+              {bulkDeleting ? 'Excluindo...' : `Excluir${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -232,11 +310,12 @@ export default function Dashboard() {
                   <div className="space-y-3 min-h-[60px]">
                     {byStatus(s).map(p => (
                       <div key={p.id}
-                        draggable
-                        onDragStart={() => { dragPostId.current = p.id; }}
+                        draggable={!selectMode}
+                        onDragStart={() => { if (!selectMode) dragPostId.current = p.id; }}
                         onDragEnd={() => { dragPostId.current = null; setDragOver(null); }}
-                        className="relative cursor-grab active:cursor-grabbing active:opacity-60 transition-opacity">
-                        <PostCard post={p} onUpdate={handleUpdate} onDelete={handleDelete} onOpen={setSelected} />
+                        className={`relative ${selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing active:opacity-60'} transition-opacity`}>
+                        <PostCard post={p} onUpdate={handleUpdate} onDelete={handleDelete} onOpen={setSelected}
+                          selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect} />
                       </div>
                     ))}
                     {byStatus(s).length === 0 && (
@@ -256,7 +335,8 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filtered.map(p => (
                 <div key={p.id} className="relative">
-                  <PostCard post={p} onUpdate={handleUpdate} onDelete={handleDelete} onOpen={setSelected} />
+                  <PostCard post={p} onUpdate={handleUpdate} onDelete={handleDelete} onOpen={setSelected}
+                    selectMode={selectMode} isSelected={selectedIds.has(p.id)} onToggleSelect={toggleSelect} />
                 </div>
               ))}
               {filtered.length === 0 && (

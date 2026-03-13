@@ -9,9 +9,12 @@ interface Props {
   onUpdate: (p: Post) => void;
   onDelete: (id: string) => void;
   onOpen: (p: Post) => void;
+  selectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
+export function PostCard({ post, onUpdate, onDelete, onOpen, selectMode, isSelected, onToggleSelect }: Props) {
   const [loading, setLoading] = useState(false);
   const isReel = post.formato === 'reel';
 
@@ -39,9 +42,25 @@ export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
   const imgSrc = post.image_url ? BASE + post.image_url : null;
 
   return (
-    <div className="rounded-lg overflow-hidden hover:ring-1 hover:ring-[#CCFF00]/30 transition-all cursor-pointer group relative"
-      style={{ background: '#111111', border: '1px solid rgba(255,255,255,0.06)' }}
-      onClick={() => onOpen(post)}>
+    <div className={`rounded-lg overflow-hidden transition-all cursor-pointer group relative ${isSelected ? 'ring-2 ring-[#CCFF00]' : 'hover:ring-1 hover:ring-[#CCFF00]/30'}`}
+      style={{ background: isSelected ? '#1A1A0A' : '#111111', border: '1px solid rgba(255,255,255,0.06)' }}
+      onClick={() => selectMode && onToggleSelect ? onToggleSelect(post.id) : onOpen(post)}>
+
+      {/* Select checkbox */}
+      {selectMode && (
+        <div className="absolute top-2 left-2 z-10">
+          <div className="w-5 h-5 rounded flex items-center justify-center transition-all"
+            style={isSelected
+              ? { background: '#CCFF00', border: '2px solid #CCFF00' }
+              : { background: 'rgba(10,10,10,0.8)', border: '2px solid #444' }}>
+            {isSelected && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#0A0A0A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Image area — only for non-Reel formats */}
       {!isReel ? (
@@ -96,13 +115,15 @@ export function PostCard({ post, onUpdate, onDelete, onOpen }: Props) {
         )}
       </div>
 
-      {/* Delete on hover */}
-      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={(e) => { e.stopPropagation(); if (confirm('Excluir post?')) onDelete(post.id); }}
-          className="rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
-          style={{ background: 'rgba(10,10,10,0.9)', color: '#EF4444' }}
-          title="Excluir">&#10005;</button>
-      </div>
+      {/* Delete on hover (hidden in select mode) */}
+      {!selectMode && (
+        <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); if (confirm('Excluir post?')) onDelete(post.id); }}
+            className="rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
+            style={{ background: 'rgba(10,10,10,0.9)', color: '#EF4444' }}
+            title="Excluir">&#10005;</button>
+        </div>
+      )}
     </div>
   );
 }
