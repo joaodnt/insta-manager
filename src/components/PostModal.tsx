@@ -228,22 +228,36 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
   // Auto-generate content for new carousel posts
-  const generateSlidesContent = async (pilar: string, hook: string, currentSlides: Slide[], formato: string) => {
-    if (!hook.trim()) return;
+  const generateSlidesContent = async (pilar: string, topicOrHook: string, currentSlides: Slide[], formato: string, isTopicBased = false) => {
+    if (!topicOrHook.trim()) return;
     setContentGenLoading(true);
     try {
-      const { slides: generated } = await api.generateSlidesContent({
+      const payload: any = {
         pilar,
-        hook,
         slides: currentSlides.map(s => ({ label: s.label })),
         formato,
-      });
+      };
+      // Send as topic (AI generates hook) or as hook (legacy)
+      if (isTopicBased) {
+        payload.topic = topicOrHook;
+      } else {
+        payload.hook = topicOrHook;
+      }
+      const { hook: generatedHook, caption, slides: generated } = await api.generateSlidesContent(payload);
       // Merge generated content into slides
       const next = currentSlides.map(slide => {
         const match = generated.find(g => g.label === slide.label);
         return match ? { ...slide, content: match.content } : slide;
       });
-      setForm(f => ({ ...f, slides: next }));
+      // Update hook and caption from AI if topic-based
+      const updates: Partial<Post> = { slides: next };
+      if (isTopicBased && generatedHook) {
+        updates.hook = generatedHook;
+      }
+      if (caption) {
+        updates.caption = caption;
+      }
+      setForm(f => ({ ...f, ...updates }));
     } catch (err: any) {
       console.error('Erro ao gerar conteudo:', err.message);
     } finally {
@@ -273,10 +287,10 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     }
   }, [post]);
 
-  // Auto-generate content when triggered
+  // Auto-generate content when triggered (topic-based for new posts)
   useEffect(() => {
     if (autoGenTriggered && form.pilar && form.hook && form.slides && form.slides.length > 0) {
-      generateSlidesContent(form.pilar, form.hook, form.slides as Slide[], form.formato || 'carrossel');
+      generateSlidesContent(form.pilar, form.hook, form.slides as Slide[], form.formato || 'carrossel', true);
       setAutoGenTriggered(false);
     }
   }, [autoGenTriggered]);
@@ -586,7 +600,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
-                      onClick={() => generateSlidesContent(form.pilar || post.pilar, form.hook || post.hook, slides, form.formato || post.formato)}
+                      onClick={() => generateSlidesContent(form.pilar || post.pilar, form.hook || post.hook, slides, form.formato || post.formato, false)}
                       disabled={contentGenLoading || batchLoading}
                       className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
                       style={{ background: '#CCFF00', color: '#0A0A0A' }}>

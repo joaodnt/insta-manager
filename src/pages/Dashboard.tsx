@@ -432,16 +432,26 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
 }
 
 // ── New post modal (simplified — opens full editor after creation) ──
+const TEMA_PLACEHOLDERS: Record<Pilar, string> = {
+  'bastidores': 'Ex: mostrar como criei meu ultimo infoproduto em 3 dias usando IA',
+  'sistemas': 'Ex: como automatizar o atendimento de clientes com n8n e ChatGPT',
+  'ia-aplicada': 'Ex: tutorial de como usar o ChatGPT para criar scripts de Reels',
+  'provocacao': 'Ex: por que 90% dos infoprodutores vao falir em 2025',
+  'resultado': 'Ex: como saimos de 0 a 50k de faturamento em 60 dias com automacao',
+  'noticias': 'Ex: noticias de IA e automacao desta semana e como impactam infoprodutores',
+};
+
 function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Post) => void }) {
-  const [form, setForm] = useState({ hook: '', pilar: 'bastidores' as Pilar, formato: 'reel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
+  const [form, setForm] = useState({ tema: '', pilar: 'bastidores' as Pilar, formato: 'reel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
   const [loading, setLoading] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const submit = async () => {
-    if (!form.hook) return alert('Preencha o hook');
+    if (!form.tema) return alert('Descreva o tema do post');
     setLoading(true);
     try {
-      const p = await api.createPost(form);
+      // Store tema in hook temporarily — PostModal auto-gen will use it as topic
+      const p = await api.createPost({ ...form, hook: form.tema });
       onCreate(p);
     } finally {
       setLoading(false);
@@ -481,14 +491,16 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Hook</label>
-          <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-            placeholder="A frase que para o scroll..." value={form.hook} onChange={e => set('hook', e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); }} />
+          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Tema / Sobre o que e o post?</label>
+          <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={inputStyle}
+            rows={3}
+            placeholder={TEMA_PLACEHOLDERS[form.pilar] || 'Descreva o tema do post...'}
+            value={form.tema} onChange={e => set('tema', e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }} />
+          <p className="text-xs mt-1" style={{ color: '#444' }}>
+            A IA vai gerar o hook, textos e conteudo automaticamente com base no tema.
+          </p>
         </div>
-        <p className="text-xs" style={{ color: '#555' }}>
-          Preencha o basico e clique em criar — o editor completo abrira em seguida.
-        </p>
         <button onClick={submit} disabled={loading}
           className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
           style={{ background: '#CCFF00', color: '#0A0A0A' }}>

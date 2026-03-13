@@ -372,14 +372,18 @@ Sempre inclua: fonte da noticia, impacto pratico, e o que o infoprodutor deve fa
 };
 
 app.post('/api/generate-slides-content', async (req, res) => {
-  const { pilar, hook, slides, formato } = req.body;
-  if (!pilar || !hook || !slides) return res.status(400).json({ error: 'pilar, hook e slides obrigatorios' });
+  const { pilar, hook, topic, slides, formato } = req.body;
+  const input = topic || hook; // topic is the new field, hook is legacy fallback
+  if (!pilar || !input || !slides) return res.status(400).json({ error: 'pilar, tema/hook e slides obrigatorios' });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
 
   const pilarContext = PILAR_PROMPTS[pilar] || PILAR_PROMPTS['bastidores'];
   const slideLabels = slides.map((s, i) => `Slide ${i + 1}: ${s.label}`).join('\n');
+
+  // If we have a topic (not a hook), the AI must also generate the hook
+  const isTopicBased = !!topic;
 
   try {
     const systemPrompt = `Voce e um copywriter e estrategista de conteudo do Instagram @ojoaonetocp — marca Infomestre.
@@ -399,13 +403,25 @@ REGRAS OBRIGATORIAS:
 - Formato: ${formato === 'carrossel' ? 'Carrossel Instagram — texto visual para cada slide' : 'Post Instagram'}
 - O conteudo deve fluir naturalmente de um slide para o proximo
 
-O HOOK do post e: "${hook}"
+${isTopicBased
+  ? `O TEMA/ASSUNTO do post e: "${input}"
+Baseado neste tema, voce precisa:
+1. Criar um HOOK poderoso (a frase de capa que para o scroll) relacionado ao tema
+2. Pesquisar/desenvolver o conteudo com base no tema descrito
+3. Gerar o conteudo textual de cada slide
+
+O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`
+  : `O HOOK do post e: "${input}"`}
 
 Voce precisa gerar o CONTEUDO TEXTUAL para cada slide abaixo:
 ${slideLabels}
 
-Retorne um JSON com array "slides" onde cada item tem "label" (exatamente como fornecido) e "content" (o texto gerado).
-Exemplo: { "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
+Retorne um JSON com:
+- "hook": a frase de hook do post (${isTopicBased ? 'crie um hook impactante baseado no tema' : 'use o hook fornecido'})
+- "caption": uma legenda curta para o post no Instagram (2-4 linhas, com hashtags relevantes)
+- "slides": array onde cada item tem "label" (exatamente como fornecido) e "content" (o texto gerado)
+
+Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }, ...] }`;
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -425,9 +441,13 @@ Exemplo: { "slides": [{ "label": "Hook — capa", "content": "texto gerado..." }
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     try {
       const result = JSON.parse(text);
-      res.json({ slides: result.slides || [] });
+      res.json({
+        hook: result.hook || input,
+        caption: result.caption || '',
+        slides: result.slides || [],
+      });
     } catch {
-      res.json({ slides: [] });
+      res.json({ hook: input, caption: '', slides: [] });
     }
   } catch (err) {
     console.error('Generate slides content error:', err.message);
