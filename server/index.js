@@ -272,11 +272,23 @@ Retorne no formato JSON: { "rewritten": "..." }`;
 
 // ── Generate image prompt with AI ─────────────────────────────
 app.post('/api/generate-prompt', async (req, res) => {
-  const { slideLabel, slideContent, context, formato } = req.body;
+  const { slideLabel, slideContent, context, formato, slideIndex, allSlides } = req.body;
   if (!slideContent) return res.status(400).json({ error: 'slideContent obrigatorio' });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  // Build carousel continuity context
+  let carouselContext = '';
+  if (allSlides && Array.isArray(allSlides) && allSlides.length > 1) {
+    const prevSlides = allSlides
+      .filter((s, i) => i < (slideIndex || 0) && s.content)
+      .map((s, i) => `Slide ${i + 1} (${s.label}): "${s.content}"`)
+      .join('\n');
+    if (prevSlides) {
+      carouselContext = `\nSLIDES ANTERIORES DO CARROSSEL (mantenha continuidade visual):\n${prevSlides}\n`;
+    }
+  }
 
   try {
     const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram de infoprodutos digitais no Brasil.
@@ -292,24 +304,35 @@ ESTILO VISUAL OBRIGATORIO (baseado nos templates BrandsDecoded):
 - Composicao: layouts assimetricos modernos, bastante espaco negativo, hierarquia visual forte
 - Mood: futurista, sofisticado, tech, inovador, premium
 - Inspiracao: design de interfaces futuristas, dashboards tech, estetica cyberpunk refinada
-- SEM texto renderizado na imagem (texto sera adicionado por cima no Canva)
+
+REGRA CRITICA — TEXTO NA IMAGEM:
+- A imagem DEVE conter o TEXTO DO SLIDE escrito em PORTUGUES BRASILEIRO
+- O texto principal deve estar em destaque, legivel, com tipografia moderna e bold
+- Use a fonte estilo "Plus Jakarta Sans" ou sans-serif moderna e grossa
+- O texto deve ser integrado ao design como parte visual, nao sobreposto
+- Texto principal em branco (#FFFFFF) ou verde limao (#CCFF00) sobre fundo escuro
+- Mantenha hierarquia: titulo grande e impactante, subtexto menor se necessario
+- O texto na imagem deve ser EXATAMENTE o que esta no conteudo do slide (em portugues)
 
 Voce precisa criar um PROMPT para geracao de imagem de IA baseado no conteudo do slide.
 Formato: ${formato === 'carrossel' ? 'Carrossel Instagram (1:1 ou 4:5)' : formato === 'single' ? 'Post unico Instagram (1:1)' : 'Reel Instagram (9:16)'}
 ${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
+${carouselContext}
 
-REGRAS:
+REGRAS DO PROMPT:
 - O prompt deve ser em INGLES (para melhor resultado na geracao)
+- MAS o texto que deve aparecer NA IMAGEM deve estar em PORTUGUES BRASILEIRO exatamente como escrito no conteudo
+- Inclua explicitamente no prompt: 'with bold text overlay in Brazilian Portuguese that reads: "TEXTO AQUI"'
 - Descreva o estilo visual BrandsDecoded futurista: composicao, cores escuras, glow neon verde, mood tech
 - Mencione que e para Instagram, profissional, alta qualidade, 4K
-- NAO inclua texto na imagem — apenas elementos visuais e graficos
 - Sem marcas d'agua
 - Adapte o visual ao tipo de slide (hook = impactante com glow forte, dados = infografico tech, CTA = call to action visual com destaque neon)
-- Sempre inclua: "dark futuristic tech aesthetic, black background (#0A0A0A), neon lime green (#CCFF00) accents, geometric shapes, subtle glow effects"
+- Para carrosseis: mantenha CONTINUIDADE VISUAL entre os slides (mesma paleta, estilo, composicao)
+- Sempre inclua: "dark futuristic tech aesthetic, black background (#0A0A0A), neon lime green (#CCFF00) accents"
 
 ${context ? `Contexto do post completo:\n${context}\n` : ''}
 
-Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
+Retorne APENAS o prompt em ingles (com o texto PT-BR embutido), sem explicacoes. JSON: { "prompt": "..." }`;
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -317,7 +340,7 @@ Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo do slide:\n${slideContent}` }] }],
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo do slide (ESTE TEXTO DEVE APARECER NA IMAGEM):\n${slideContent}` }] }],
           generationConfig: { responseMimeType: 'application/json' },
         }),
       }

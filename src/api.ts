@@ -22,7 +22,7 @@ export const api = {
     req<{ hook: string; caption: string }>('/api/rewrite-copy', { method: 'POST', body: JSON.stringify(data) }),
   rewriteSection: (data: { section: string; content: string; context?: string; references?: string; formato: string }) =>
     req<{ rewritten: string }>('/api/rewrite-section', { method: 'POST', body: JSON.stringify(data) }),
-  generatePrompt: (data: { slideLabel: string; slideContent: string; context?: string; formato: string }) =>
+  generatePrompt: (data: { slideLabel: string; slideContent: string; context?: string; formato: string; slideIndex?: number; allSlides?: { label: string; content: string }[] }) =>
     req<{ prompt: string }>('/api/generate-prompt', { method: 'POST', body: JSON.stringify(data) }),
   generateSlidesContent: (data: { pilar: string; hook?: string; topic?: string; slides: { label: string }[]; formato: string }) =>
     req<{ hook: string; caption: string; slides: { label: string; content: string }[] }>('/api/generate-slides-content', { method: 'POST', body: JSON.stringify(data) }),

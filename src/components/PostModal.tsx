@@ -82,10 +82,11 @@ function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
 }
 
 // ── Slide editor for Carousel ──────────────────────────────
-function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveUp, onMoveDown, postId }: {
+function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveUp, onMoveDown, postId, allSlides }: {
   slide: Slide; index: number; total: number; formato: string;
   onUpdate: (s: Slide) => void; onRemove: () => void;
   onMoveUp: () => void; onMoveDown: () => void; postId: string;
+  allSlides?: { label: string; content: string }[];
 }) {
   const [promptLoading, setPromptLoading] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
@@ -101,6 +102,8 @@ function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveU
         slideLabel: slide.label,
         slideContent: slide.content,
         formato,
+        slideIndex: index,
+        allSlides: allSlides,
       });
       onUpdate({ ...slide, image_prompt: prompt });
     } catch (err: any) {
@@ -400,6 +403,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     setBatchLoading(true);
     try {
       const next = [...slides];
+      const allSlidesCtx = next.map(s => ({ label: s.label, content: s.content }));
       for (let i = 0; i < next.length; i++) {
         if (!next[i].content.trim()) continue;
         try {
@@ -407,6 +411,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
             slideLabel: next[i].label,
             slideContent: next[i].content,
             formato: form.formato || post.formato,
+            slideIndex: i,
+            allSlides: allSlidesCtx,
           });
           next[i] = { ...next[i], image_prompt: prompt };
         } catch { /* skip failed */ }
@@ -645,6 +651,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                       key={i} slide={slide} index={i} total={slides.length}
                       formato={form.formato || post.formato}
                       postId={post.id}
+                      allSlides={slides.map(s => ({ label: s.label, content: s.content }))}
                       onUpdate={s => updateSlide(i, s)}
                       onRemove={() => removeSlide(i)}
                       onMoveUp={() => moveSlide(i, -1)}
