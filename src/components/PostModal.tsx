@@ -243,14 +243,19 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
         payload.hook = topicOrHook;
       }
       const { hook: generatedHook, caption, slides: generated } = await api.generateSlidesContent(payload);
-      // Merge generated content into slides
-      const next = currentSlides.map(slide => {
-        const match = generated.find(g => g.label === slide.label);
+      if (!generated || generated.length === 0) {
+        alert('A IA nao retornou conteudo. Clique em "Gerar conteudo" para tentar novamente.');
+        return;
+      }
+      // Merge generated content into slides — use INDEX-based matching (more reliable than label matching)
+      const next = currentSlides.map((slide, i) => {
+        // Try index first, then fallback to label match
+        const match = generated[i] || generated.find(g => g.label === slide.label);
         return match ? { ...slide, content: match.content } : slide;
       });
-      // Update hook and caption from AI if topic-based
+      // Update hook and caption from AI
       const updates: Partial<Post> = { slides: next };
-      if (isTopicBased && generatedHook) {
+      if (generatedHook) {
         updates.hook = generatedHook;
       }
       if (caption) {
@@ -259,6 +264,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
       setForm(f => ({ ...f, ...updates }));
     } catch (err: any) {
       console.error('Erro ao gerar conteudo:', err.message);
+      alert('Erro ao gerar conteudo: ' + (err.message || 'Tente novamente'));
     } finally {
       setContentGenLoading(false);
     }
@@ -598,7 +604,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
-                      onClick={() => generateSlidesContent(form.pilar || post.pilar, form.hook || post.hook, slides, form.formato || post.formato, false)}
+                      onClick={() => generateSlidesContent(form.pilar || post.pilar, form.hook || post.hook, slides, form.formato || post.formato, true)}
                       disabled={contentGenLoading || batchLoading}
                       className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
                       style={{ background: '#CCFF00', color: '#0A0A0A' }}>

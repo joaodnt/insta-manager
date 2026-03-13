@@ -546,10 +546,18 @@ Exemplo: { "hook": "frase impactante...", "caption": "legenda do post...", "slid
     const data = await apiRes.json();
     if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const text = parts.map(p => p.text || '').join('');
     console.log('generate-slides-content raw response length:', text.length);
+    console.log('generate-slides-content first 500 chars:', text.substring(0, 500));
+    if (!text) {
+      console.error('generate-slides-content: empty response from Gemini');
+      console.log('Gemini response:', JSON.stringify(data).substring(0, 1000));
+      return res.status(500).json({ error: 'Resposta vazia da IA. Tente novamente.' });
+    }
     try {
       const result = JSON.parse(text);
+      console.log('generate-slides-content: parsed OK, slides:', result.slides?.length || 0);
       res.json({
         hook: result.hook || input || 'Post gerado com IA',
         caption: result.caption || '',
