@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Post, Slide } from '../types';
 import { api } from '../api';
 import { PilarBadge, FormatoBadge } from './Badge';
-import { STATUS_CYCLE, STATUS_CFG, PILARES, FORMATOS, PILAR_CFG, FORMATO_CFG } from './config';
+import { STATUS_CYCLE, STATUS_CFG, PILARES, FORMATOS, PILAR_CFG, FORMATO_CFG, PILAR_SLIDE_PRESETS } from './config';
 
 interface Props {
   post: Post | null;
@@ -19,16 +19,20 @@ const ASPECT_RATIOS = [
   { label: '16:9', value: '16:9', desc: 'Paisagem' },
 ];
 
-const DEFAULT_SLIDE_LABELS = [
-  'Hook — capa que para o scroll',
-  'Problema — dor do publico',
-  'Dados / Estatisticas',
-  'Storytelling — historia real',
-  'Solucao — o que fazer',
-  'Prova — resultado concreto',
-  'Passo a passo',
-  'CTA — chamada para acao',
-];
+// Helper: get default slides for a pilar
+function getDefaultSlidesForPilar(pilar: string): { label: string; content: string; image_prompt: string; image_url: string | null }[] {
+  const presets = PILAR_SLIDE_PRESETS[pilar as keyof typeof PILAR_SLIDE_PRESETS];
+  if (!presets) {
+    // Fallback generic
+    return [
+      { label: 'Hook — capa que para o scroll', content: '', image_prompt: '', image_url: null },
+      { label: 'Problema — dor do publico', content: '', image_prompt: '', image_url: null },
+      { label: 'Solucao', content: '', image_prompt: '', image_url: null },
+      { label: 'CTA — chamada para acao', content: '', image_prompt: '', image_url: null },
+    ];
+  }
+  return presets.map(p => ({ label: p.label, content: '', image_prompt: '', image_url: null }));
+}
 
 function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
   section: string; content: string; context?: string; formato: string;
@@ -224,14 +228,18 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   useEffect(() => {
     if (post) {
       const p = { ...post };
-      // Initialize slides for carousel if empty
+      // Initialize slides for carousel if empty — use pilar-specific presets
       if (p.formato === 'carrossel' && (!p.slides || p.slides.length === 0)) {
-        p.slides = [
-          { label: 'Hook — capa que para o scroll', content: p.hook || '', image_prompt: '', image_url: null },
-          { label: 'Problema — dor do publico', content: '', image_prompt: '', image_url: null },
-          { label: 'Solucao', content: '', image_prompt: '', image_url: null },
-          { label: 'CTA — chamada para acao', content: p.caption ? p.caption.split('\n').pop() || '' : '', image_prompt: '', image_url: null },
-        ];
+        const defaultSlides = getDefaultSlidesForPilar(p.pilar);
+        // Pre-fill hook content in first slide and CTA in last
+        if (defaultSlides.length > 0 && p.hook) {
+          defaultSlides[0].content = p.hook;
+        }
+        if (defaultSlides.length > 1 && p.caption) {
+          const lastLine = p.caption.split('\n').pop() || '';
+          defaultSlides[defaultSlides.length - 1].content = lastLine;
+        }
+        p.slides = defaultSlides;
       }
       setForm(p);
     }
@@ -252,9 +260,22 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   };
   const removeSlide = (i: number) => setSlides(slides.filter((_, idx) => idx !== i));
   const addSlide = () => {
+    const pilar = (form.pilar || post.pilar) as string;
+    const presets = PILAR_SLIDE_PRESETS[pilar as keyof typeof PILAR_SLIDE_PRESETS];
     const usedLabels = new Set(slides.map(s => s.label));
-    const nextLabel = DEFAULT_SLIDE_LABELS.find(l => !usedLabels.has(l)) || `Slide ${slides.length + 1}`;
+    const nextLabel = presets?.find(p => !usedLabels.has(p.label))?.label || `Slide ${slides.length + 1}`;
     setSlides([...slides, { label: nextLabel, content: '', image_prompt: '', image_url: null }]);
+  };
+
+  // Reset slides when pilar changes (only if carousel and slides are still empty/default)
+  const handlePilarChange = (newPilar: string) => {
+    set('pilar', newPilar);
+    if ((form.formato || post.formato) === 'carrossel') {
+      const hasContent = slides.some(s => s.content.trim() || s.image_url);
+      if (!hasContent) {
+        set('slides', getDefaultSlidesForPilar(newPilar));
+      }
+    }
   };
   const moveSlide = (from: number, dir: number) => {
     const next = [...slides];
@@ -428,7 +449,7 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                 <label className="block text-xs font-medium mb-1" style={labelStyle}>Pilar</label>
                 <select className="w-full text-sm rounded-lg px-3 py-2 outline-none"
                   style={inputStyle}
-                  value={form.pilar || ''} onChange={e => set('pilar', e.target.value)}>
+                  value={form.pilar || ''} onChange={e => handlePilarChange(e.target.value)}>
                   {PILARES.map(p => <option key={p} value={p}>{PILAR_CFG[p].label}</option>)}
                 </select>
               </div>

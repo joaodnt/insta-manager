@@ -422,7 +422,7 @@ app.get('/api/posts/:id/export-doc', async (req, res) => {
   const isReel = post.formato === 'reel';
   const pilarLabels = {
     'bastidores': 'Bastidores', 'sistemas': 'Sistemas', 'ia-aplicada': 'IA Aplicada',
-    'provocacao': 'Provocacao', 'resultado': 'Resultado'
+    'provocacao': 'Provocacao', 'resultado': 'Resultado', 'noticias': 'Noticias'
   };
   const formatoLabels = { 'reel': 'Reel', 'carrossel': 'Carrossel', 'single': 'Post Unico' };
 
