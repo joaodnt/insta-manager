@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-// Image generation via direct REST (v1alpha supports gemini image models)
+// Image generation via direct REST — gemini-2.5-flash-image (Nano Banana)
 const db = require('./db');
 
 const app = express();
@@ -66,9 +66,9 @@ app.post('/api/generate-image', async (req, res) => {
   try {
     const enhancedPrompt = `Instagram post image for Infomestre brand (Brazilian digital course creator). Brand colors: dark black background, neon lime green accent, bold white typography. Modern minimalist bold style. ${prompt}. High quality photorealistic or illustration. No watermarks.`;
 
-    // Direct REST call to v1alpha — the only API version that supports Gemini image generation
+    // Direct REST call — gemini-2.5-flash-image is "Nano Banana", supports generateContent with IMAGE modality
     const apiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1alpha/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
