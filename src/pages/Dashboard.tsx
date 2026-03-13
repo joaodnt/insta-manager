@@ -55,47 +55,50 @@ export default function Dashboard() {
     dragPostId.current = null;
     const current = posts.find(p => p.id === id);
     if (!current || current.status === targetStatus) return;
-    // Optimistic update
     setPosts(prev => prev.map(p => p.id === id ? { ...p, status: targetStatus } : p));
     try {
       const updated = await api.updatePost(id, { status: targetStatus });
       handleUpdate(updated);
     } catch {
-      loadAll(); // rollback
+      loadAll();
     }
   };
 
   const sidebarStats = stats ? [
-    { label: 'Total de posts',  value: stats.total,             color: '#0A0A0A' },
+    { label: 'Total de posts',  value: stats.total,             color: '#CCFF00' },
     { label: 'Rascunho',        value: stats.rascunho,          color: STATUS_CFG.rascunho.dot },
-    { label: 'Em Produção',     value: stats['em-producao'],    color: STATUS_CFG['em-producao'].dot },
+    { label: 'Em Producao',     value: stats['em-producao'],    color: STATUS_CFG['em-producao'].dot },
     { label: 'Pronto',          value: stats.pronto,            color: STATUS_CFG.pronto.dot },
     { label: 'Agendado',        value: stats.agendado,          color: STATUS_CFG.agendado.dot },
     { label: 'Postado',         value: stats.postado,           color: STATUS_CFG.postado.dot },
   ] : [];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#0A0A0A', fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>
 
       {/* Top bar */}
-      <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 gap-4 sticky top-0 z-40">
-        <button onClick={() => setSidebarOpen(v => !v)} className="text-gray-400 hover:text-gray-700 p-1">
+      <header className="h-12 flex items-center px-4 gap-4 sticky top-0 z-40"
+        style={{ background: '#0F0F0F', borderBottom: '1px solid #1A1A1A' }}>
+        <button onClick={() => setSidebarOpen(v => !v)} className="p-1 transition-colors" style={{ color: '#666' }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <rect y="3" width="16" height="1.5" rx=".75" fill="currentColor" />
             <rect y="7.25" width="16" height="1.5" rx=".75" fill="currentColor" />
             <rect y="11.5" width="16" height="1.5" rx=".75" fill="currentColor" />
           </svg>
         </button>
-        <span className="font-bold text-gray-900 text-sm">@ojoaonetocp</span>
-        <span className="text-gray-300 text-sm">/</span>
-        <span className="text-gray-500 text-sm">Instagram Manager</span>
+        <span className="font-bold text-sm" style={{ color: '#CCFF00' }}>@ojoaonetocp</span>
+        <span className="text-sm" style={{ color: '#333' }}>/</span>
+        <span className="text-sm" style={{ color: '#666' }}>Instagram Manager</span>
         <div className="flex-1" />
 
         {/* View toggles */}
-        <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="hidden sm:flex items-center gap-1 rounded-lg p-1" style={{ background: '#111' }}>
           {(['board','grid','calendar'] as const).map(v => (
             <button key={v} onClick={() => setView(v)}
-              className={`text-xs px-3 py-1 rounded-md font-medium transition-colors capitalize ${view === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className="text-xs px-3 py-1 rounded-md font-medium transition-colors capitalize"
+              style={view === v
+                ? { background: '#1A1A1A', color: '#CCFF00' }
+                : { color: '#666' }}>
               {v === 'board' ? 'Board' : v === 'grid' ? 'Galeria' : 'Calendario'}
             </button>
           ))}
@@ -103,7 +106,7 @@ export default function Dashboard() {
 
         <button onClick={() => setShowNew(true)}
           className="text-xs px-4 py-1.5 rounded-lg font-semibold transition-colors"
-          style={{ background: '#0A0A0A', color: '#CCFF00' }}>
+          style={{ background: '#CCFF00', color: '#0A0A0A' }}>
           + Novo Post
         </button>
       </header>
@@ -111,26 +114,27 @@ export default function Dashboard() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         {sidebarOpen && (
-          <aside className="w-56 bg-white border-r border-gray-200 flex-shrink-0 flex flex-col overflow-y-auto">
+          <aside className="w-56 flex-shrink-0 flex flex-col overflow-y-auto"
+            style={{ background: '#0F0F0F', borderRight: '1px solid #1A1A1A' }}>
             {/* Stats */}
             {stats && (
-              <div className="p-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Visao Geral</p>
+              <div className="p-4" style={{ borderBottom: '1px solid #1A1A1A' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#555' }}>Visao Geral</p>
                 <div className="space-y-2">
                   {sidebarStats.map(s => (
                     <div key={s.label} className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">{s.label}</span>
+                      <span className="text-xs" style={{ color: '#888' }}>{s.label}</span>
                       <span className="text-xs font-semibold" style={{ color: s.color }}>{s.value}</span>
                     </div>
                   ))}
                 </div>
                 {/* Progress bar */}
                 <div className="mt-3">
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                  <div className="flex justify-between text-xs mb-1" style={{ color: '#555' }}>
                     <span>Postados</span>
                     <span>{stats.total ? Math.round((stats.postado / stats.total) * 100) : 0}%</span>
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-gray-100">
+                  <div className="w-full h-1.5 rounded-full" style={{ background: '#1A1A1A' }}>
                     <div className="h-full rounded-full transition-all"
                       style={{ width: `${stats.total ? (stats.postado / stats.total) * 100 : 0}%`, background: '#CCFF00' }} />
                   </div>
@@ -139,16 +143,18 @@ export default function Dashboard() {
             )}
 
             {/* Pilares filter */}
-            <div className="p-4 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pilares</p>
+            <div className="p-4" style={{ borderBottom: '1px solid #1A1A1A' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#555' }}>Pilares</p>
               <div className="space-y-0.5">
                 <button onClick={() => setFilterPilar('all')}
-                  className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${filterPilar === 'all' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  className="w-full text-left text-xs px-2 py-1.5 rounded transition-colors"
+                  style={filterPilar === 'all' ? { background: '#1A1A1A', color: '#CCFF00', fontWeight: 500 } : { color: '#888' }}>
                   Todos os pilares
                 </button>
                 {PILARES.map(p => (
                   <button key={p} onClick={() => setFilterPilar(p)}
-                    className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors flex items-center gap-2 ${filterPilar === p ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    className="w-full text-left text-xs px-2 py-1.5 rounded transition-colors flex items-center gap-2"
+                    style={filterPilar === p ? { background: '#1A1A1A', color: '#E5E5E5', fontWeight: 500 } : { color: '#888' }}>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PILAR_CFG[p].color }} />
                     {PILAR_CFG[p].label}
                   </button>
@@ -158,15 +164,17 @@ export default function Dashboard() {
 
             {/* Formatos filter */}
             <div className="p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Formatos</p>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#555' }}>Formatos</p>
               <div className="space-y-0.5">
                 <button onClick={() => setFilterFormato('all')}
-                  className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${filterFormato === 'all' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  className="w-full text-left text-xs px-2 py-1.5 rounded transition-colors"
+                  style={filterFormato === 'all' ? { background: '#1A1A1A', color: '#CCFF00', fontWeight: 500 } : { color: '#888' }}>
                   Todos
                 </button>
                 {FORMATOS.map(f => (
                   <button key={f} onClick={() => setFilterFormato(f)}
-                    className={`w-full text-left text-xs px-2 py-1.5 rounded transition-colors ${filterFormato === f ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    className="w-full text-left text-xs px-2 py-1.5 rounded transition-colors"
+                    style={filterFormato === f ? { background: '#1A1A1A', color: '#E5E5E5', fontWeight: 500 } : { color: '#888' }}>
                     {FORMATO_CFG[f].icon} {FORMATO_CFG[f].label}
                   </button>
                 ))}
@@ -180,20 +188,22 @@ export default function Dashboard() {
           {/* Search bar */}
           <div className="flex items-center gap-3 mb-6">
             <div className="relative flex-1 max-w-sm">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ color: '#555' }}>
                 <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
                 <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
-              <input className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-md bg-white outline-none focus:border-gray-400 transition-colors"
+              <input className="w-full pl-9 pr-4 py-1.5 text-sm rounded-md outline-none transition-colors"
+                style={{ background: '#111', border: '1px solid #222', color: '#E5E5E5' }}
                 placeholder="Buscar post..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             {(search || filterPilar !== 'all' || filterFormato !== 'all') && (
               <button onClick={() => { setSearch(''); setFilterPilar('all'); setFilterFormato('all'); }}
-                className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded px-3 py-1.5 bg-white">
+                className="text-xs px-3 py-1.5 rounded"
+                style={{ color: '#888', border: '1px solid #222' }}>
                 Limpar filtros
               </button>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{filtered.length} posts</span>
+            <span className="text-xs ml-auto" style={{ color: '#555' }}>{filtered.length} posts</span>
           </div>
 
           {/* BOARD VIEW — drag-and-drop */}
@@ -203,20 +213,19 @@ export default function Dashboard() {
                 <div key={s}
                   onDragOver={e => { e.preventDefault(); setDragOver(s); }}
                   onDragLeave={e => {
-                    // Only clear if leaving the column entirely (not entering a child)
                     if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null);
                   }}
                   onDrop={() => handleDrop(s)}
                   className="flex-shrink-0 w-[220px] rounded-xl p-2 transition-all"
                   style={{
-                    background: dragOver === s ? `${STATUS_CFG[s].bg}` : 'transparent',
+                    background: dragOver === s ? '#111' : 'transparent',
                     outline: dragOver === s ? `2px solid ${STATUS_CFG[s].dot}` : '2px solid transparent',
                   }}>
                   {/* Column header */}
                   <div className="flex items-center gap-2 mb-3 px-1">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_CFG[s].dot }} />
-                    <span className="text-xs font-semibold text-gray-700">{STATUS_CFG[s].label}</span>
-                    <span className="text-xs text-gray-400 ml-auto">{byStatus(s).length}</span>
+                    <span className="text-xs font-semibold" style={{ color: '#CCC' }}>{STATUS_CFG[s].label}</span>
+                    <span className="text-xs ml-auto" style={{ color: '#555' }}>{byStatus(s).length}</span>
                   </div>
 
                   {/* Cards */}
@@ -231,7 +240,8 @@ export default function Dashboard() {
                       </div>
                     ))}
                     {byStatus(s).length === 0 && (
-                      <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center text-xs text-gray-300 select-none">
+                      <div className="rounded-lg p-4 text-center text-xs select-none"
+                        style={{ border: '2px dashed #222', color: '#333' }}>
                         Nenhum post
                       </div>
                     )}
@@ -250,7 +260,7 @@ export default function Dashboard() {
                 </div>
               ))}
               {filtered.length === 0 && (
-                <div className="col-span-full text-center text-gray-400 text-sm py-16">Nenhum post encontrado.</div>
+                <div className="col-span-full text-center text-sm py-16" style={{ color: '#555' }}>Nenhum post encontrado.</div>
               )}
             </div>
           )}
@@ -301,23 +311,24 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
   return (
     <div>
       <div className="flex items-center gap-4 mb-4">
-        <button onClick={prev} className="text-gray-400 hover:text-gray-700 transition-colors text-lg">‹</button>
-        <span className="font-semibold text-gray-800">{MONTHS[month]} {year}</span>
-        <button onClick={next} className="text-gray-400 hover:text-gray-700 transition-colors text-lg">›</button>
+        <button onClick={prev} className="transition-colors text-lg" style={{ color: '#666' }}>‹</button>
+        <span className="font-semibold" style={{ color: '#E5E5E5' }}>{MONTHS[month]} {year}</span>
+        <button onClick={next} className="transition-colors text-lg" style={{ color: '#666' }}>›</button>
       </div>
-      <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
+      <div className="grid grid-cols-7 gap-px rounded-lg overflow-hidden" style={{ background: '#1A1A1A' }}>
         {['Dom','Seg','Ter','Qua','Qui','Sex','Sab'].map(d => (
-          <div key={d} className="bg-gray-50 text-center text-xs font-medium text-gray-500 py-2">{d}</div>
+          <div key={d} className="text-center text-xs font-medium py-2" style={{ background: '#111', color: '#666' }}>{d}</div>
         ))}
         {cells.map((day, i) => {
           const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const dayPosts = day ? (postsByDate[String(day)] || []) : [];
           return (
-            <div key={i} className={`bg-white min-h-[80px] p-1.5 ${!day ? 'bg-gray-50' : ''}`}>
+            <div key={i} className="min-h-[80px] p-1.5"
+              style={{ background: day ? '#0F0F0F' : '#0A0A0A' }}>
               {day && (
                 <>
-                  <span className={`text-xs font-medium inline-flex items-center justify-center w-5 h-5 rounded-full mb-1 ${isToday ? 'text-black' : 'text-gray-600'}`}
-                    style={isToday ? { background: '#CCFF00' } : {}}>
+                  <span className="text-xs font-medium inline-flex items-center justify-center w-5 h-5 rounded-full mb-1"
+                    style={isToday ? { background: '#CCFF00', color: '#0A0A0A' } : { color: '#888' }}>
                     {day}
                   </span>
                   <div className="space-y-0.5">
@@ -328,7 +339,7 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
                         {p.hook.slice(0, 25)}...
                       </button>
                     ))}
-                    {dayPosts.length > 3 && <span className="text-xs text-gray-400">+{dayPosts.length - 3}</span>}
+                    {dayPosts.length > 3 && <span className="text-xs" style={{ color: '#555' }}>+{dayPosts.length - 3}</span>}
                   </div>
                 </>
               )}
@@ -357,52 +368,56 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
     }
   };
 
+  const inputStyle = { background: '#111', border: '1px solid #222', color: '#E5E5E5' };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+        style={{ background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)' }}
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Novo Post</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <h2 className="font-semibold" style={{ color: '#E5E5E5', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Novo Post</h2>
+          <button onClick={onClose} style={{ color: '#666' }}>&#10005;</button>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Pilar</label>
-            <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Pilar</label>
+            <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
               value={form.pilar} onChange={e => set('pilar', e.target.value)}>
               {PILARES.map(p => <option key={p} value={p}>{PILAR_CFG[p].label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Formato</label>
-            <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Formato</label>
+            <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
               value={form.formato} onChange={e => set('formato', e.target.value)}>
               {FORMATOS.map(f => <option key={f} value={f}>{FORMATO_CFG[f].label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
-            <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Data</label>
+            <input type="date" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
               value={form.scheduled_date} onChange={e => set('scheduled_date', e.target.value)} />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Hook</label>
-          <input type="text" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Hook</label>
+          <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
             placeholder="A frase que para o scroll..." value={form.hook} onChange={e => set('hook', e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Caption</label>
-          <textarea className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400 resize-none"
+          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Caption</label>
+          <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={inputStyle}
             rows={4} value={form.caption} onChange={e => set('caption', e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Prompt da imagem</label>
-          <input type="text" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Prompt da imagem</label>
+          <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
             placeholder="Descreva a imagem para gerar com IA..." value={form.image_prompt} onChange={e => set('image_prompt', e.target.value)} />
         </div>
         <button onClick={submit} disabled={loading}
           className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-          style={{ background: '#0A0A0A', color: '#CCFF00' }}>
+          style={{ background: '#CCFF00', color: '#0A0A0A' }}>
           {loading ? 'Criando...' : 'Criar Post'}
         </button>
       </div>

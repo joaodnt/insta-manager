@@ -76,6 +76,8 @@ if (store.posts.length === 0) {
       scheduled_date: d.toISOString().split('T')[0],
       image_url: null,
       image_prompt: p.image_prompt,
+      corpo: '',
+      cta: '',
       hashtags: '#infoproduto #automatizacao #IA #infomestre',
       notes: '',
       created_at: now,

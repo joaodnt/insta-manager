@@ -11,14 +11,58 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
+function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
+  section: string; content: string; context?: string; formato: string;
+  onRewrite: (text: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [refs, setRefs] = useState('');
+  const [showRefs, setShowRefs] = useState(false);
+
+  const rewrite = async () => {
+    if (!content.trim()) return;
+    setLoading(true);
+    try {
+      const result = await api.rewriteSection({ section, content, context, references: refs, formato });
+      onRewrite(result.rewritten);
+    } catch (err: any) {
+      alert('Erro ao reescrever: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <button onClick={rewrite} disabled={loading || !content.trim()}
+          className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+          style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, background: '#0A0A0A', color: '#CCFF00', borderRadius: '3px', padding: '1px 4px' }}>IA</span>
+          {loading ? 'Reescrevendo...' : 'Reescrever'}
+        </button>
+        <button onClick={() => setShowRefs(!showRefs)}
+          className="text-xs px-2 py-1.5 rounded-md transition-colors"
+          style={{ color: '#666', border: '1px solid #222' }}>
+          {showRefs ? 'Fechar refs' : '+ Refs'}
+        </button>
+      </div>
+      {showRefs && (
+        <textarea
+          className="w-full text-xs rounded-md p-2 resize-none outline-none"
+          style={{ background: '#111', border: '1px solid #222', color: '#999' }}
+          rows={3} value={refs} onChange={e => setRefs(e.target.value)}
+          placeholder="Cole copys de referencia como inspiracao..." />
+      )}
+    </div>
+  );
+}
+
 export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   const [form, setForm] = useState<Partial<Post>>({});
   const [loading, setLoading] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
-  const [rewriteLoading, setRewriteLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [references, setReferences] = useState('');
-  const [showRewrite, setShowRewrite] = useState(false);
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
   useEffect(() => {
@@ -56,230 +100,238 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     }
   };
 
-  const rewriteCopy = async () => {
-    setRewriteLoading(true);
-    try {
-      const result = await api.rewriteCopy({
-        caption: form.caption || '',
-        hook: form.hook || '',
-        references,
-        formato: form.formato || post.formato,
-      });
-      set('hook', result.hook);
-      set('caption', result.caption);
-      setForm(f => ({ ...f, hook: result.hook, caption: result.caption }));
-    } catch (err: any) {
-      alert('Erro ao reescrever: ' + err.message);
-    } finally {
-      setRewriteLoading(false);
-    }
-  };
-
   const imgSrc = form.image_url ? BASE + form.image_url : null;
 
+  // Build context string for AI section rewrite
+  const buildContext = (excluding: string) => {
+    const parts: string[] = [];
+    if (excluding !== 'hook' && form.hook) parts.push(`Hook: ${form.hook}`);
+    if (excluding !== 'corpo' && form.corpo) parts.push(`Corpo: ${form.corpo}`);
+    if (excluding !== 'cta' && form.cta) parts.push(`CTA: ${form.cta}`);
+    if (excluding !== 'caption' && form.caption) parts.push(`Caption: ${form.caption}`);
+    return parts.join('\n');
+  };
+
+  const inputStyle = { background: '#111', border: '1px solid #222', color: '#E5E5E5' };
+  const labelStyle = { color: '#888' };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col"
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
+      <div className="rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col"
+        style={{ background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1A1A1A' }}>
           <div className="flex items-center gap-3">
             <PilarBadge pilar={form.pilar as any || post.pilar} />
             <FormatoBadge formato={form.formato as any || post.formato} />
             {form.scheduled_date && (
-              <span className="text-sm text-gray-500">
+              <span className="text-sm" style={{ color: '#666' }}>
                 {new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'long' })}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3">
-            {saved && <span className="text-xs text-green-600 font-medium">Salvo</span>}
+            {saved && <span className="text-xs font-medium" style={{ color: '#CCFF00' }}>Salvo</span>}
             <button onClick={save} disabled={loading}
-              className="text-sm px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              style={{ background: '#0A0A0A', color: '#CCFF00' }}>
+              className="text-sm px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 font-semibold"
+              style={{ background: '#CCFF00', color: '#0A0A0A' }}>
               {loading ? 'Salvando...' : 'Salvar'}
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none">&#10005;</button>
+            <button onClick={onClose} className="transition-colors text-xl leading-none" style={{ color: '#666' }}>&#10005;</button>
           </div>
         </div>
 
         {/* Body */}
         <div className="flex flex-1 overflow-hidden">
 
-          {/* Left panel */}
-          <div className="w-72 shrink-0 border-r border-gray-100 flex flex-col">
-            {isReel ? (
-              /* ── REEL: video section ── */
-              <div className="flex-1 flex flex-col">
-                <div className="flex-1 bg-gray-50 relative overflow-hidden flex flex-col items-center justify-center p-4">
-                  {form.video_url ? (
-                    <div className="w-full text-center space-y-2">
-                      <div className="w-16 h-16 mx-auto bg-gray-900 rounded-full flex items-center justify-center">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#CCFF00"><polygon points="5 3 19 12 5 21" /></svg>
-                      </div>
-                      <p className="text-xs text-gray-600 break-all">{form.video_url}</p>
-                    </div>
-                  ) : (
-                    <div className="text-center space-y-3 text-gray-300">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="mx-auto">
-                        <rect x="2" y="4" width="20" height="16" rx="2" />
-                        <polygon points="10 8 16 12 10 16" fill="currentColor" opacity="0.3" />
-                      </svg>
-                      <span className="text-xs text-gray-400 block">Nenhum video vinculado</span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3 space-y-2">
-                  <input type="text"
-                    className="w-full text-xs border border-gray-200 rounded p-2 outline-none focus:border-gray-400 text-gray-700"
-                    placeholder="URL do video (Drive, YouTube, etc)..."
-                    value={form.video_url || ''}
-                    onChange={e => set('video_url', e.target.value)} />
-                  <p className="text-[10px] text-gray-400">Cole o link do video finalizado</p>
-                </div>
+          {/* Left panel — only for non-Reel (image section) */}
+          {!isReel && (
+            <div className="w-72 shrink-0 flex flex-col" style={{ borderRight: '1px solid #1A1A1A' }}>
+              <div className="flex-1 relative overflow-hidden" style={{ background: '#0A0A0A' }}>
+                {imgSrc ? (
+                  <img src={imgSrc} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    <span className="text-xs" style={{ color: '#444' }}>Nenhuma imagem gerada ainda</span>
+                  </div>
+                )}
               </div>
-            ) : (
-              /* ── IMAGE section (carrossel / single) ── */
-              <>
-                <div className="flex-1 bg-gray-50 relative overflow-hidden">
-                  {imgSrc ? (
-                    <img src={imgSrc} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-gray-300 p-6 text-center">
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M21 15l-5-5L5 21" />
-                      </svg>
-                      <span className="text-xs text-gray-400">Nenhuma imagem gerada ainda</span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3 space-y-2">
-                  <textarea className="w-full text-xs border border-gray-200 rounded p-2 resize-none outline-none focus:border-gray-400 text-gray-700"
-                    rows={3} placeholder="Prompt para gerar a imagem..." value={form.image_prompt || ''}
-                    onChange={e => set('image_prompt', e.target.value)} />
-                  <button onClick={genImage} disabled={genLoading}
-                    className="w-full text-xs py-2 rounded-lg transition-colors disabled:opacity-50"
-                    style={{ background: '#0A0A0A', color: '#CCFF00' }}>
-                    {genLoading ? 'Gerando com IA...' : imgSrc ? 'Gerar nova imagem' : 'Gerar imagem com IA'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+              <div className="p-3 space-y-2">
+                <textarea className="w-full text-xs rounded p-2 resize-none outline-none"
+                  style={inputStyle}
+                  rows={3} placeholder="Prompt para gerar a imagem..." value={form.image_prompt || ''}
+                  onChange={e => set('image_prompt', e.target.value)} />
+                <button onClick={genImage} disabled={genLoading}
+                  className="w-full text-xs py-2 rounded-lg transition-colors disabled:opacity-50 font-semibold"
+                  style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+                  {genLoading ? 'Gerando com IA...' : imgSrc ? 'Gerar nova imagem' : 'Gerar imagem com IA'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Right: form */}
           <div className="flex-1 overflow-y-auto p-6 space-y-5">
             {/* Meta row */}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Pilar</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+                <label className="block text-xs font-medium mb-1" style={labelStyle}>Pilar</label>
+                <select className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+                  style={inputStyle}
                   value={form.pilar || ''} onChange={e => set('pilar', e.target.value)}>
                   {PILARES.map(p => <option key={p} value={p}>{PILAR_CFG[p].label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Formato</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+                <label className="block text-xs font-medium mb-1" style={labelStyle}>Formato</label>
+                <select className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+                  style={inputStyle}
                   value={form.formato || ''} onChange={e => set('formato', e.target.value)}>
                   {FORMATOS.map(f => <option key={f} value={f}>{FORMATO_CFG[f].label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+                <label className="block text-xs font-medium mb-1" style={labelStyle}>Status</label>
+                <select className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+                  style={inputStyle}
                   value={form.status || ''} onChange={e => set('status', e.target.value as any)}>
                   {STATUS_CYCLE.map(s => <option key={s} value={s}>{STATUS_CFG[s].label}</option>)}
                 </select>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Data agendada</label>
-              <input type="date" className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
-                value={form.scheduled_date || ''} onChange={e => set('scheduled_date', e.target.value)} />
-            </div>
-
-            {/* Hook */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                {isReel ? 'Hook do Reel (primeiros 3 seg)' : 'Hook (primeiros 3 segundos)'}
-              </label>
-              <input type="text" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400 font-semibold"
-                value={form.hook || ''} onChange={e => set('hook', e.target.value)} placeholder="A frase que para o scroll..." />
-            </div>
-
-            {/* Caption / Script */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                {isReel ? 'Script / Copy do Reel' : 'Caption completa'}
-              </label>
-              <textarea className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400 resize-none"
-                rows={isReel ? 10 : 8} value={form.caption || ''} onChange={e => set('caption', e.target.value)}
-                placeholder={isReel ? 'Escreva o roteiro falado do Reel...' : 'Escreva a legenda completa do post...'} />
-              <p className="text-xs text-gray-400 mt-1 text-right">{(form.caption || '').length} caracteres</p>
-            </div>
-
-            {/* AI Rewrite Section */}
-            <div className="border border-dashed border-gray-200 rounded-lg p-3 space-y-3" style={{ borderColor: showRewrite ? '#CCFF00' : undefined }}>
-              <button onClick={() => setShowRewrite(!showRewrite)}
-                className="flex items-center gap-2 text-xs font-medium w-full"
-                style={{ color: '#5A7000' }}>
-                <span style={{ background: '#CCFF00', color: '#0A0A0A', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: 700 }}>IA</span>
-                {showRewrite ? 'Fechar reescrita com IA' : 'Reescrever copy com IA'}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  style={{ transform: showRewrite ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-
-              {showRewrite && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Referencias (cole copys de outros criadores como inspiracao)
-                    </label>
-                    <textarea
-                      className="w-full text-xs border border-gray-200 rounded p-2 resize-none outline-none focus:border-gray-400 text-gray-600"
-                      rows={5}
-                      value={references}
-                      onChange={e => setReferences(e.target.value)}
-                      placeholder={"Cole aqui copys de referencia de outros criadores...\nEx: @fulano: \"Texto da copy dele...\"\n@ciclano: \"Outro exemplo de copy...\""}
-                    />
-                  </div>
-                  <button onClick={rewriteCopy} disabled={rewriteLoading || (!form.caption && !form.hook)}
-                    className="w-full text-xs py-2.5 rounded-lg transition-colors disabled:opacity-50 font-semibold"
-                    style={{ background: '#0A0A0A', color: '#CCFF00' }}>
-                    {rewriteLoading ? 'Reescrevendo com IA...' : 'Reescrever Hook + Copy com IA'}
-                  </button>
-                  <p className="text-[10px] text-gray-400">
-                    A IA vai reescrever mantendo a ideia, melhorando hook e CTA. As referencias servem de inspiracao de tom.
-                  </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={labelStyle}>Data agendada</label>
+                <input type="date" className="text-sm rounded-lg px-3 py-2 outline-none w-full"
+                  style={inputStyle}
+                  value={form.scheduled_date || ''} onChange={e => set('scheduled_date', e.target.value)} />
+              </div>
+              {isReel && (
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={labelStyle}>URL do Video</label>
+                  <input type="text" className="text-sm rounded-lg px-3 py-2 outline-none w-full"
+                    style={inputStyle}
+                    placeholder="Link do video (Drive, YouTube...)"
+                    value={form.video_url || ''} onChange={e => set('video_url', e.target.value)} />
                 </div>
               )}
             </div>
 
+            {isReel ? (
+              /* ═══ REEL: 3 script sections ═══ */
+              <>
+                {/* Hook */}
+                <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>1</span>
+                    <label className="text-xs font-semibold" style={{ color: '#CCFF00' }}>Hook — primeiros 3 segundos</label>
+                  </div>
+                  <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none font-semibold"
+                    style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
+                    value={form.hook || ''} onChange={e => set('hook', e.target.value)}
+                    placeholder="A frase que para o scroll..." />
+                  <SectionRewriteBtn
+                    section="hook" content={form.hook || ''}
+                    context={buildContext('hook')}
+                    formato={form.formato || post.formato}
+                    onRewrite={text => set('hook', text)} />
+                </div>
+
+                {/* Corpo */}
+                <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>2</span>
+                    <label className="text-xs font-semibold" style={{ color: '#CCFF00' }}>Corpo — desenvolvimento do script</label>
+                  </div>
+                  <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
+                    rows={8} value={form.corpo || ''} onChange={e => set('corpo', e.target.value)}
+                    placeholder="Desenvolva o conteudo principal do Reel..." />
+                  <p className="text-xs text-right" style={{ color: '#444' }}>{(form.corpo || '').length} caracteres</p>
+                  <SectionRewriteBtn
+                    section="corpo" content={form.corpo || ''}
+                    context={buildContext('corpo')}
+                    formato={form.formato || post.formato}
+                    onRewrite={text => set('corpo', text)} />
+                </div>
+
+                {/* CTA */}
+                <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>3</span>
+                    <label className="text-xs font-semibold" style={{ color: '#CCFF00' }}>CTA — chamada para acao</label>
+                  </div>
+                  <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    style={{ background: '#0A0A0A', border: '1px solid #222', color: '#E5E5E5' }}
+                    rows={3} value={form.cta || ''} onChange={e => set('cta', e.target.value)}
+                    placeholder="Chamada para acao: seguir, salvar, comentar, clicar no link..." />
+                  <SectionRewriteBtn
+                    section="cta" content={form.cta || ''}
+                    context={buildContext('cta')}
+                    formato={form.formato || post.formato}
+                    onRewrite={text => set('cta', text)} />
+                </div>
+              </>
+            ) : (
+              /* ═══ NON-REEL: Hook + Caption ═══ */
+              <>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={labelStyle}>Hook (primeiros 3 segundos)</label>
+                  <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none font-semibold"
+                    style={inputStyle}
+                    value={form.hook || ''} onChange={e => set('hook', e.target.value)}
+                    placeholder="A frase que para o scroll..." />
+                  <SectionRewriteBtn
+                    section="hook" content={form.hook || ''}
+                    context={buildContext('hook')}
+                    formato={form.formato || post.formato}
+                    onRewrite={text => set('hook', text)} />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={labelStyle}>Caption completa</label>
+                  <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                    style={inputStyle}
+                    rows={8} value={form.caption || ''} onChange={e => set('caption', e.target.value)}
+                    placeholder="Escreva a legenda completa do post..." />
+                  <p className="text-xs mt-1 text-right" style={{ color: '#444' }}>{(form.caption || '').length} caracteres</p>
+                  <SectionRewriteBtn
+                    section="corpo" content={form.caption || ''}
+                    context={buildContext('caption')}
+                    formato={form.formato || post.formato}
+                    onRewrite={text => set('caption', text)} />
+                </div>
+              </>
+            )}
+
             {/* Hashtags */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Hashtags</label>
-              <input type="text" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
+              <label className="block text-xs font-medium mb-1" style={labelStyle}>Hashtags</label>
+              <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+                style={inputStyle}
                 value={form.hashtags || ''} onChange={e => set('hashtags', e.target.value)} />
             </div>
 
             {/* Notes */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Notas internas</label>
-              <textarea className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400 resize-none text-gray-500"
+              <label className="block text-xs font-medium mb-1" style={labelStyle}>Notas internas</label>
+              <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+                style={{ ...inputStyle, color: '#999' }}
                 rows={3} value={form.notes || ''} onChange={e => set('notes', e.target.value)}
                 placeholder="Anotacoes sobre este post..." />
             </div>
 
             {/* Delete */}
-            <div className="pt-2 border-t border-gray-100">
+            <div className="pt-2" style={{ borderTop: '1px solid #1A1A1A' }}>
               <button onClick={() => { if (confirm('Excluir post?')) { onDelete(post.id); onClose(); } }}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors">
+                className="text-xs transition-colors" style={{ color: '#EF4444' }}>
                 Excluir este post
               </button>
             </div>

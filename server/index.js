@@ -30,16 +30,16 @@ app.get('/api/posts/:id', (req, res) => {
 });
 
 app.post('/api/posts', (req, res) => {
-  const { hook, caption, pilar, formato, status, scheduled_date, image_url, image_prompt, video_url, hashtags, notes } = req.body;
+  const { hook, caption, corpo, cta, pilar, formato, status, scheduled_date, image_url, image_prompt, video_url, hashtags, notes } = req.body;
   if (!hook || !pilar || !formato) return res.status(400).json({ error: 'hook, pilar e formato são obrigatórios' });
-  const post = db.insert({ hook, caption: caption || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '' });
+  const post = db.insert({ hook, caption: caption || '', corpo: corpo || '', cta: cta || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '' });
   res.status(201).json(post);
 });
 
 app.put('/api/posts/:id', (req, res) => {
   const post = db.findById(req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
-  const fields = ['hook','caption','pilar','formato','status','scheduled_date','image_url','image_prompt','hashtags','notes','video_url'];
+  const fields = ['hook','caption','corpo','cta','pilar','formato','status','scheduled_date','image_url','image_prompt','hashtags','notes','video_url'];
   const updates = {};
   for (const f of fields) if (req.body[f] !== undefined) updates[f] = req.body[f];
   res.json(db.update(req.params.id, updates));
@@ -183,6 +183,78 @@ Retorne no formato JSON: { "hook": "...", "caption": "..." }`;
     }
   } catch (err) {
     console.error('Rewrite error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AI Section Rewrite (Hook / Corpo / CTA individual) ────
+app.post('/api/rewrite-section', async (req, res) => {
+  const { section, content, context, references, formato } = req.body;
+  if (!section || !content) return res.status(400).json({ error: 'section e content obrigatorios' });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  const sectionLabels = {
+    hook: 'Hook (primeiros 3 segundos — a frase que para o scroll)',
+    corpo: 'Corpo do script (desenvolvimento do conteudo, argumentacao principal)',
+    cta: 'CTA — Call to Action (chamada para acao final, engajamento)',
+  };
+
+  const sectionRules = {
+    hook: `- Maximo 2 linhas\n- Impactante, provocador, gera curiosidade\n- Deve fazer a pessoa parar de scrollar\n- Pode usar pergunta retorica, afirmacao chocante ou dado surpreendente`,
+    corpo: `- Desenvolvimento do conteudo principal\n- Paragrafos curtos (max 2 linhas cada)\n- Linguagem conversacional brasileira\n- Entrega valor real, ensina ou provoca reflexao\n- Pode usar listas, comparacoes, storytelling`,
+    cta: `- Maximo 2-3 linhas\n- Direto e claro\n- Convida para acao: seguir, salvar, comentar, compartilhar, clicar no link\n- Pode usar urgencia ou escassez\n- Termina com energia`,
+  };
+
+  try {
+    const systemPrompt = `Voce e um copywriter especialista em conteudo para Instagram de infoprodutos digitais no Brasil.
+Marca: Infomestre — criador de cursos digitais brasileiro, liderado por Joao Neto.
+Tom: direto, provocador, moderno, sem enrolacao. Portugues brasileiro informal.
+Formato: ${formato === 'reel' ? 'Reel (video curto, script falado em portugues BR)' : formato === 'carrossel' ? 'Carrossel (texto por slides em portugues BR)' : 'Post single (legenda unica em portugues BR)'}
+
+VOCE ESTA REESCREVENDO APENAS A SECAO: ${sectionLabels[section] || section}
+
+REGRAS PARA ESTA SECAO:
+${sectionRules[section] || '- Reescreva mantendo a ideia central'}
+
+REGRAS GERAIS:
+- Tudo em PORTUGUES BRASILEIRO (PT-BR)
+- Linguagem conversacional brasileira real
+- Use girias e expressoes brasileiras quando fizer sentido
+- Sem cliches batidos
+- Emojis com moderacao (maximo 2)
+
+${context ? `CONTEXTO DO POST COMPLETO (as outras secoes, para manter coerencia):\n${context}\n` : ''}
+${references ? `REFERENCIAS DE ESTILO (NAO copie, apenas absorva o tom):\n${references}\n` : ''}
+
+Reescreva APENAS a secao indicada, mantendo a ideia central mas melhorando tudo.
+Retorne no formato JSON: { "rewritten": "..." }`;
+
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nTexto atual da secao:\n${content}` }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro na API Gemini' });
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+      const result = JSON.parse(text);
+      res.json({ rewritten: result.rewritten || text });
+    } catch {
+      res.json({ rewritten: text });
+    }
+  } catch (err) {
+    console.error('Section rewrite error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

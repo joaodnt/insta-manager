@@ -1,11 +1,11 @@
 import type { Status, Pilar, Formato } from '../types';
 
 export const STATUS_CFG: Record<Status, { label: string; dot: string; bg: string; text: string }> = {
-  rascunho:      { label: 'Rascunho',     dot: '#9CA3AF', bg: '#F9FAFB', text: '#6B7280' },
-  'em-producao': { label: 'Em Produção',  dot: '#CCFF00', bg: '#F7FFD6', text: '#5A7000' },
-  pronto:        { label: 'Pronto',       dot: '#2563EB', bg: '#EFF6FF', text: '#1D4ED8' },
-  agendado:      { label: 'Agendado',     dot: '#D97706', bg: '#FFFBEB', text: '#B45309' },
-  postado:       { label: 'Postado',      dot: '#16A34A', bg: '#F0FDF4', text: '#15803D' },
+  rascunho:      { label: 'Rascunho',     dot: '#6B7280', bg: '#1A1A1A', text: '#9CA3AF' },
+  'em-producao': { label: 'Em Produção',  dot: '#CCFF00', bg: '#1A2600', text: '#CCFF00' },
+  pronto:        { label: 'Pronto',       dot: '#3B82F6', bg: '#0A1628', text: '#60A5FA' },
+  agendado:      { label: 'Agendado',     dot: '#F59E0B', bg: '#1A1400', text: '#FBBF24' },
+  postado:       { label: 'Postado',      dot: '#22C55E', bg: '#0A1A0F', text: '#4ADE80' },
 };
 
 export const PILAR_CFG: Record<Pilar, { label: string; color: string }> = {

@@ -6,6 +6,8 @@ export interface Post {
   id: string;
   hook: string;
   caption: string;
+  corpo: string;
+  cta: string;
   pilar: Pilar;
   formato: Formato;
   status: Status;
