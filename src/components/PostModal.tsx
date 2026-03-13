@@ -229,7 +229,6 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
 
   // Auto-generate content for new carousel posts
   const generateSlidesContent = async (pilar: string, topicOrHook: string, currentSlides: Slide[], formato: string, isTopicBased = false) => {
-    if (!topicOrHook.trim()) return;
     setContentGenLoading(true);
     try {
       const payload: any = {
@@ -237,9 +236,9 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
         slides: currentSlides.map(s => ({ label: s.label })),
         formato,
       };
-      // Send as topic (AI generates hook) or as hook (legacy)
+      // Send as topic (AI generates hook + idea) or as hook (legacy)
       if (isTopicBased) {
-        payload.topic = topicOrHook;
+        payload.topic = topicOrHook; // can be empty string = auto-idea mode
       } else {
         payload.hook = topicOrHook;
       }
@@ -273,24 +272,23 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
       if (p.formato === 'carrossel' && (!p.slides || p.slides.length === 0)) {
         const defaultSlides = getDefaultSlidesForPilar(p.pilar);
         p.slides = defaultSlides;
-        // Auto-generate content if post has a hook (newly created)
-        if (p.hook && p.hook.trim()) {
-          shouldAutoGen = true;
-        }
+        // Always auto-generate for new carousel posts (with or without hook)
+        shouldAutoGen = true;
       }
       setForm(p);
       setAutoGenTriggered(false);
-      // Trigger auto-gen after state is set
       if (shouldAutoGen) {
         setTimeout(() => setAutoGenTriggered(true), 100);
       }
     }
   }, [post]);
 
-  // Auto-generate content when triggered (topic-based for new posts)
+  // Auto-generate content when triggered
   useEffect(() => {
-    if (autoGenTriggered && form.pilar && form.hook && form.slides && form.slides.length > 0) {
-      generateSlidesContent(form.pilar, form.hook, form.slides as Slide[], form.formato || 'carrossel', true);
+    if (autoGenTriggered && form.pilar && form.slides && form.slides.length > 0) {
+      const topicOrHook = form.hook || '';
+      const isTopicBased = true; // always generate hook for new posts
+      generateSlidesContent(form.pilar, topicOrHook, form.slides as Slide[], form.formato || 'carrossel', isTopicBased);
       setAutoGenTriggered(false);
     }
   }, [autoGenTriggered]);

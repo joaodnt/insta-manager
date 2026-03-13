@@ -31,8 +31,8 @@ app.get('/api/posts/:id', (req, res) => {
 
 app.post('/api/posts', (req, res) => {
   const { hook, caption, corpo, cta, pilar, formato, status, scheduled_date, image_url, image_prompt, video_url, hashtags, notes, slides } = req.body;
-  if (!hook || !pilar || !formato) return res.status(400).json({ error: 'hook, pilar e formato são obrigatórios' });
-  const post = db.insert({ hook, caption: caption || '', corpo: corpo || '', cta: cta || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '', slides: slides || [] });
+  if (!pilar || !formato) return res.status(400).json({ error: 'pilar e formato são obrigatórios' });
+  const post = db.insert({ hook: hook || '', caption: caption || '', corpo: corpo || '', cta: cta || '', pilar, formato, status: status || 'rascunho', scheduled_date: scheduled_date || null, image_url: image_url || null, image_prompt: image_prompt || '', video_url: video_url || null, hashtags: hashtags || '', notes: notes || '', slides: slides || [] });
   res.status(201).json(post);
 });
 
@@ -337,6 +337,68 @@ Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
   }
 });
 
+// ── Fetch news with AI + Google Search grounding ──────────────
+app.post('/api/fetch-news', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  try {
+    const systemPrompt = `Voce e um curador de noticias sobre tecnologia, IA, automacao e marketing digital.
+
+Busque as NOTICIAS MAIS RECENTES E RELEVANTES de hoje ou desta semana sobre:
+- Inteligencia Artificial (novos modelos, ferramentas, atualizacoes)
+- Automacao de marketing e vendas
+- Big Tech (Google, Meta, OpenAI, Microsoft, Apple)
+- Ferramentas digitais e SaaS
+- Tendencias de infoprodutos e marketing digital
+
+FONTES PRIORITARIAS: TechCrunch, Wired, The Verge, VentureBeat, Ars Technica, CNET, Artificial Intelligence News, IA Brasil Noticias, InfoMoney, Exame, CNN Brasil, Canaltech, IT Forum
+
+REGRAS:
+- Retorne entre 6 a 10 noticias REAIS e ATUAIS
+- Cada noticia deve ter: titulo, resumo curto (2-3 frases), fonte (nome do site), e URL real
+- Priorize noticias de HOJE ou dos ultimos 3 dias
+- Foque em noticias que impactam infoprodutores e empreendedores digitais brasileiros
+- Tudo em PORTUGUES BRASILEIRO
+
+Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "..." }] }`;
+
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+          tools: [{ googleSearch: {} }],
+        }),
+      }
+    );
+
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+      const result = JSON.parse(text);
+      res.json({ news: result.news || [] });
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const result = JSON.parse(jsonMatch[0]);
+          return res.json({ news: result.news || [] });
+        } catch {}
+      }
+      res.json({ news: [] });
+    }
+  } catch (err) {
+    console.error('Fetch news error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Generate all slide TEXT content with AI (pilar-specific) ─────
 const PILAR_PROMPTS = {
   bastidores: `Voce esta criando conteudo para o pilar BASTIDORES do Instagram @ojoaonetocp (Infomestre).
@@ -399,8 +461,8 @@ REGRAS ESPECIFICAS:
 
 app.post('/api/generate-slides-content', async (req, res) => {
   const { pilar, hook, topic, slides, formato } = req.body;
-  const input = topic || hook; // topic is the new field, hook is legacy fallback
-  if (!pilar || !input || !slides) return res.status(400).json({ error: 'pilar, tema/hook e slides obrigatorios' });
+  const input = topic || hook || ''; // can be empty for auto-idea mode
+  if (!pilar || !slides) return res.status(400).json({ error: 'pilar e slides obrigatorios' });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
@@ -408,10 +470,36 @@ app.post('/api/generate-slides-content', async (req, res) => {
   const pilarContext = PILAR_PROMPTS[pilar] || PILAR_PROMPTS['bastidores'];
   const slideLabels = slides.map((s, i) => `Slide ${i + 1}: ${s.label}`).join('\n');
 
-  // If we have a topic (not a hook), the AI must also generate the hook
+  // Determine mode: auto-idea (no input), topic-based, or hook-based
+  const isAutoIdea = !input.trim();
   const isTopicBased = !!topic;
 
   try {
+    let contextBlock = '';
+    if (isAutoIdea) {
+      contextBlock = `Voce precisa INVENTAR uma ideia ORIGINAL e RELEVANTE de post para o pilar descrito acima.
+Crie algo que seria viral no Instagram de infoprodutos. Pense em:
+- O que o publico-alvo esta sentindo/pensando agora
+- Tendencias atuais do mercado digital
+- Dores e desejos de infoprodutores brasileiros
+- Algo provocador, educativo ou inspirador
+
+Depois de definir a ideia:
+1. Crie um HOOK poderoso (a frase de capa que para o scroll)
+2. Desenvolva o conteudo completo de cada slide
+3. O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`;
+    } else if (isTopicBased) {
+      contextBlock = `O TEMA/ASSUNTO do post e: "${input}"
+Baseado neste tema, voce precisa:
+1. Criar um HOOK poderoso (a frase de capa que para o scroll) relacionado ao tema
+2. Pesquisar/desenvolver o conteudo com base no tema descrito
+3. Gerar o conteudo textual de cada slide
+
+O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`;
+    } else {
+      contextBlock = `O HOOK do post e: "${input}"`;
+    }
+
     const systemPrompt = `Voce e um copywriter e estrategista de conteudo do Instagram @ojoaonetocp — marca Infomestre.
 Criador: Joao Neto, infoprodutor brasileiro que ensina a criar e automatizar infoprodutos com IA.
 
@@ -429,21 +517,13 @@ REGRAS OBRIGATORIAS:
 - Formato: ${formato === 'carrossel' ? 'Carrossel Instagram — texto visual para cada slide' : 'Post Instagram'}
 - O conteudo deve fluir naturalmente de um slide para o proximo
 
-${isTopicBased
-  ? `O TEMA/ASSUNTO do post e: "${input}"
-Baseado neste tema, voce precisa:
-1. Criar um HOOK poderoso (a frase de capa que para o scroll) relacionado ao tema
-2. Pesquisar/desenvolver o conteudo com base no tema descrito
-3. Gerar o conteudo textual de cada slide
-
-O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`
-  : `O HOOK do post e: "${input}"`}
+${contextBlock}
 
 Voce precisa gerar o CONTEUDO TEXTUAL para cada slide abaixo:
 ${slideLabels}
 
 Retorne um JSON com:
-- "hook": a frase de hook do post (${isTopicBased ? 'crie um hook impactante baseado no tema' : 'use o hook fornecido'})
+- "hook": a frase de hook do post (crie um hook IMPACTANTE e ORIGINAL${input.trim() ? ' baseado no tema/hook fornecido' : ''})
 - "caption": uma legenda curta para o post no Instagram (2-4 linhas, com hashtags relevantes)
 - "slides": array onde cada item tem "label" (exatamente como fornecido) e "content" (o texto gerado)
 

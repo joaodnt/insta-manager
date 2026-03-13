@@ -26,6 +26,8 @@ export const api = {
     req<{ prompt: string }>('/api/generate-prompt', { method: 'POST', body: JSON.stringify(data) }),
   generateSlidesContent: (data: { pilar: string; hook?: string; topic?: string; slides: { label: string }[]; formato: string }) =>
     req<{ hook: string; caption: string; slides: { label: string; content: string }[] }>('/api/generate-slides-content', { method: 'POST', body: JSON.stringify(data) }),
+  fetchNews: () =>
+    req<{ news: { title: string; summary: string; source: string; url: string }[] }>('/api/fetch-news', { method: 'POST', body: JSON.stringify({}) }),
   generateSlidesImages: (data: { postId: string; slides: Slide[]; aspectRatio: string }) =>
     req<{ results: { index: number; url: string | null; error?: string }[] }>('/api/generate-slides-images', { method: 'POST', body: JSON.stringify(data) }),
   getSettings:   () => req<Record<string, string>>('/api/settings'),

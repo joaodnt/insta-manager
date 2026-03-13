@@ -431,30 +431,51 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
   );
 }
 
-// ── New post modal (simplified — opens full editor after creation) ──
-const TEMA_PLACEHOLDERS: Record<Pilar, string> = {
-  'bastidores': 'Ex: mostrar como criei meu ultimo infoproduto em 3 dias usando IA',
-  'sistemas': 'Ex: como automatizar o atendimento de clientes com n8n e ChatGPT',
-  'ia-aplicada': 'Ex: tutorial de como usar o ChatGPT para criar scripts de Reels',
-  'provocacao': 'Ex: por que 90% dos infoprodutores vao falir em 2025',
-  'resultado': 'Ex: como saimos de 0 a 50k de faturamento em 60 dias com automacao',
-  'noticias': 'Ex: noticias de IA e automacao desta semana e como impactam infoprodutores',
-};
+// ── New post modal (simplified — auto-generates idea per pilar, news picker for noticias) ──
+interface NewsItem { title: string; summary: string; source: string; url: string; }
 
 function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Post) => void }) {
-  const [form, setForm] = useState({ tema: '', pilar: 'bastidores' as Pilar, formato: 'reel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
+  const [form, setForm] = useState({ pilar: 'bastidores' as Pilar, formato: 'carrossel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
   const [loading, setLoading] = useState(false);
+  // News step for noticias pilar
+  const [newsStep, setNewsStep] = useState(false);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsList, setNewsList] = useState<NewsItem[]>([]);
+  const [newsError, setNewsError] = useState('');
+
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const submit = async () => {
-    if (!form.tema) return alert('Descreva o tema do post');
+  const submit = async (selectedNews?: NewsItem) => {
     setLoading(true);
     try {
-      // Store tema in hook temporarily — PostModal auto-gen will use it as topic
-      const p = await api.createPost({ ...form, hook: form.tema });
+      const hookText = selectedNews
+        ? `${selectedNews.title} — Fonte: ${selectedNews.source} (${selectedNews.url})`
+        : ''; // empty = auto-idea mode
+      const p = await api.createPost({ ...form, hook: hookText });
       onCreate(p);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (form.pilar === 'noticias') {
+      // Fetch news first
+      setNewsStep(true);
+      setNewsLoading(true);
+      setNewsError('');
+      try {
+        const { news } = await api.fetchNews();
+        setNewsList(news);
+        if (news.length === 0) setNewsError('Nenhuma noticia encontrada. Tente novamente.');
+      } catch (err: any) {
+        setNewsError('Erro ao buscar noticias: ' + err.message);
+      } finally {
+        setNewsLoading(false);
+      }
+    } else {
+      // Auto-idea mode: create with empty hook, AI will generate everything
+      submit();
     }
   };
 
@@ -462,50 +483,110 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={onClose}>
-      <div className="rounded-xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+      <div className={`rounded-xl shadow-2xl w-full ${newsStep ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-hidden flex flex-col`}
         style={{ background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)' }}
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold" style={{ color: '#E5E5E5', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Novo Post</h2>
-          <button onClick={onClose} style={{ color: '#666' }}>&#10005;</button>
+        <div className="flex items-center justify-between px-6 pt-5 pb-3">
+          <h2 className="font-semibold" style={{ color: '#E5E5E5', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {newsStep ? 'Selecione a noticia' : 'Novo Post'}
+          </h2>
+          <button onClick={newsStep ? () => { setNewsStep(false); setNewsList([]); } : onClose} style={{ color: '#666' }}>
+            {newsStep ? '← Voltar' : '✕'}
+          </button>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Pilar</label>
-            <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-              value={form.pilar} onChange={e => set('pilar', e.target.value)}>
-              {PILARES.map(p => <option key={p} value={p}>{PILAR_CFG[p].label}</option>)}
-            </select>
+
+        {!newsStep ? (
+          /* ═══ STEP 1: Pilar + Formato + Data ═══ */
+          <div className="px-6 pb-6 space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Pilar</label>
+                <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
+                  value={form.pilar} onChange={e => set('pilar', e.target.value)}>
+                  {PILARES.map(p => <option key={p} value={p}>{PILAR_CFG[p].label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Formato</label>
+                <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
+                  value={form.formato} onChange={e => set('formato', e.target.value)}>
+                  {FORMATOS.map(f => <option key={f} value={f}>{FORMATO_CFG[f].label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Data</label>
+                <input type="date" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
+                  value={form.scheduled_date} onChange={e => set('scheduled_date', e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: '#444' }}>
+              {form.pilar === 'noticias'
+                ? 'A IA vai buscar as noticias mais recentes de IA e tecnologia para voce escolher.'
+                : 'A IA vai gerar uma ideia e todo o conteudo automaticamente com base no pilar.'}
+            </p>
+            <button onClick={handleCreate} disabled={loading}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+              {loading ? 'Criando...' : form.pilar === 'noticias' ? 'Buscar Noticias' : 'Criar e Editar'}
+            </button>
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Formato</label>
-            <select className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-              value={form.formato} onChange={e => set('formato', e.target.value)}>
-              {FORMATOS.map(f => <option key={f} value={f}>{FORMATO_CFG[f].label}</option>)}
-            </select>
+        ) : (
+          /* ═══ STEP 2 (noticias only): News selection ═══ */
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            {newsLoading ? (
+              <div className="py-12 text-center space-y-3">
+                <div className="w-8 h-8 rounded-full animate-pulse mx-auto" style={{ background: '#CCFF00' }} />
+                <p className="text-sm font-semibold" style={{ color: '#CCFF00' }}>Buscando noticias...</p>
+                <p className="text-xs" style={{ color: '#666' }}>A IA esta pesquisando as ultimas noticias de IA, tech e marketing digital.</p>
+              </div>
+            ) : newsError ? (
+              <div className="py-8 text-center space-y-3">
+                <p className="text-sm" style={{ color: '#EF4444' }}>{newsError}</p>
+                <button onClick={handleCreate} className="text-xs px-4 py-2 rounded-lg font-semibold"
+                  style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
+                  Tentar novamente
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs mb-3" style={{ color: '#666' }}>
+                  Clique na noticia que deseja transformar em conteudo:
+                </p>
+                {newsList.map((news, i) => (
+                  <button key={i} onClick={() => submit(news)} disabled={loading}
+                    className="w-full text-left rounded-lg p-3 transition-all hover:scale-[1.01] disabled:opacity-50"
+                    style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+                    <div className="flex items-start gap-3">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0 mt-0.5"
+                        style={{ background: '#F97316', color: '#FFF' }}>{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold mb-1" style={{ color: '#E5E5E5' }}>{news.title}</h3>
+                        <p className="text-xs mb-1.5 line-clamp-2" style={{ color: '#888' }}>{news.summary}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: '#1A1A1A', color: '#CCFF00' }}>
+                            {news.source}
+                          </span>
+                          {news.url && (
+                            <a href={news.url} target="_blank" rel="noopener noreferrer"
+                              className="text-xs underline" style={{ color: '#555' }}
+                              onClick={e => e.stopPropagation()}>
+                              Ver original ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {loading && (
+                  <div className="text-center py-3">
+                    <span className="text-xs" style={{ color: '#CCFF00' }}>Criando post...</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Data</label>
-            <input type="date" className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle}
-              value={form.scheduled_date} onChange={e => set('scheduled_date', e.target.value)} />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: '#888' }}>Tema / Sobre o que e o post?</label>
-          <textarea className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none" style={inputStyle}
-            rows={3}
-            placeholder={TEMA_PLACEHOLDERS[form.pilar] || 'Descreva o tema do post...'}
-            value={form.tema} onChange={e => set('tema', e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }} />
-          <p className="text-xs mt-1" style={{ color: '#444' }}>
-            A IA vai gerar o hook, textos e conteudo automaticamente com base no tema.
-          </p>
-        </div>
-        <button onClick={submit} disabled={loading}
-          className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-          style={{ background: '#CCFF00', color: '#0A0A0A' }}>
-          {loading ? 'Criando...' : 'Criar e Editar'}
-        </button>
+        )}
       </div>
     </div>
   );
