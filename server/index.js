@@ -68,13 +68,13 @@ app.get('/api/stats', (req, res) => {
 
 // ── Image generation (Imagen 4.0 → fallback Nano Banana) ──
 app.post('/api/generate-image', async (req, res) => {
-  const { prompt, postId, aspectRatio = '9:16' } = req.body;
+  const { prompt, postId, aspectRatio = '1:1' } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt obrigatório' });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada.' });
 
-  const enhancedPrompt = `Imagem para post de Instagram da marca Infomestre (criador de cursos digitais brasileiro). Cores da marca: fundo preto escuro (#0A0A0A), destaque verde limão neon (#CCFF00), tipografia branca em negrito. Estilo moderno, minimalista e ousado. ${prompt}. Alta qualidade, fotorrealista ou ilustração. Sem marcas d'água. Sem texto na imagem. Contexto brasileiro.`;
+  const enhancedPrompt = `${prompt}. Professional, ultra-detailed, 4K quality image for Instagram post. Brand: Infomestre. No watermarks.`;
 
   // Try Imagen 4.0 first (predict endpoint)
   try {
@@ -314,6 +314,20 @@ REGRA CRITICA — TEXTO NA IMAGEM:
 - Mantenha hierarquia: titulo grande e impactante, subtexto menor se necessario
 - O texto na imagem deve ser EXATAMENTE o que esta no conteudo do slide (em portugues)
 
+REGRA CRITICA — FUNDO DA IMAGEM:
+- O fundo NAO pode ser abstrato/aleatorio. Deve conter imagens REAIS relacionadas ao tema do post
+- Exemplos: se fala sobre YouTube, mostre a sede do YouTube ou interface do YouTube ao fundo
+- Se fala sobre Google, mostre logos/predios/produtos do Google ao fundo
+- Se fala sobre IA, mostre robots, interfaces de IA, chips, data centers ao fundo
+- O fundo deve ser escurecido (overlay preto 60-80% opacity) para o texto ficar legivel
+- Use imagens reais/fotorrealistas como background, NAO formas abstratas genericas
+
+BRANDING FIXO — SEMPRE incluir no design:
+- No topo: pequeno texto "Criador de cursos digitais" e logo "Infomestre" em verde limao (#CCFF00)
+- Paleta: fundo preto (#0A0A0A), verde neon (#CCFF00) para destaques, branco (#FFFFFF) para texto
+- Estetica premium, tech, futurista — inspirada nos templates BrandsDecoded
+- Fonte bold/extra-bold estilo Plus Jakarta Sans
+
 Voce precisa criar um PROMPT para geracao de imagem de IA baseado no conteudo do slide.
 Formato: ${formato === 'carrossel' ? 'Carrossel Instagram (1:1 ou 4:5)' : formato === 'single' ? 'Post unico Instagram (1:1)' : 'Reel Instagram (9:16)'}
 ${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
@@ -323,7 +337,8 @@ REGRAS DO PROMPT:
 - O prompt deve ser em INGLES (para melhor resultado na geracao)
 - MAS o texto que deve aparecer NA IMAGEM deve estar em PORTUGUES BRASILEIRO exatamente como escrito no conteudo
 - Inclua explicitamente no prompt: 'with bold text overlay in Brazilian Portuguese that reads: "TEXTO AQUI"'
-- Descreva o estilo visual BrandsDecoded futurista: composicao, cores escuras, glow neon verde, mood tech
+- Inclua o branding: 'At the top: small text "Criador de cursos digitais" and brand name "Infomestre" in neon lime green (#CCFF00)'
+- FUNDO: descreva uma imagem REAL relevante ao tema (sede de empresa, produto, interface, pessoa, etc) com dark overlay
 - Mencione que e para Instagram, profissional, alta qualidade, 4K
 - Sem marcas d'agua
 - Adapte o visual ao tipo de slide (hook = impactante com glow forte, dados = infografico tech, CTA = call to action visual com destaque neon)
@@ -627,7 +642,7 @@ app.post('/api/generate-slides-images', async (req, res) => {
       continue;
     }
 
-    const enhancedPrompt = `Slide ${i + 1} of Instagram carousel for Infomestre brand. Style: dark futuristic tech aesthetic inspired by BrandsDecoded templates. Deep black background (#0A0A0A), neon lime green (#CCFF00) accent glows and highlights, white secondary elements. Visual elements: abstract geometric shapes, thin luminous lines, tech grid patterns, circuit-like patterns. Effects: subtle neon glow, glassmorphism, dark gradients, metallic reflections. Composition: modern asymmetric layout, strong visual hierarchy, ample negative space. ${slide.image_prompt}. Professional, high-quality, 4K. No text, no watermarks. No rendered typography.`;
+    const enhancedPrompt = `${slide.image_prompt}. Professional, ultra-detailed, 4K quality. Slide ${i + 1} of Instagram carousel. Brand: Infomestre. No watermarks.`;
 
     try {
       // Try Imagen 4.0
@@ -645,7 +660,7 @@ app.post('/api/generate-slides-images', async (req, res) => {
       const imagenData = await imagenRes.json();
       if (imagenRes.ok && imagenData.predictions?.[0]?.bytesBase64Encoded) {
         const imageData = Buffer.from(imagenData.predictions[0].bytesBase64Encoded, 'base64');
-        const filename = `${postId || Date.now()}-slide-${i + 1}.png`;
+        const filename = `${postId || Date.now()}-slide-${i + 1}-${Date.now()}.png`;
         fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
         results.push({ index: i, url: `/images/${filename}` });
         continue;
@@ -668,7 +683,7 @@ app.post('/api/generate-slides-images', async (req, res) => {
       const imagePart = parts.find(p => p.inlineData);
       if (imagePart) {
         const imageData = Buffer.from(imagePart.inlineData.data, 'base64');
-        const filename = `${postId || Date.now()}-slide-${i + 1}.png`;
+        const filename = `${postId || Date.now()}-slide-${i + 1}-${Date.now()}.png`;
         fs.writeFileSync(path.join(IMAGES_DIR, filename), imageData);
         results.push({ index: i, url: `/images/${filename}` });
       } else {
@@ -695,6 +710,38 @@ app.post('/api/generate-slides-images', async (req, res) => {
   }
 
   res.json({ results });
+});
+
+// ── Export carousel as ZIP ────────────────────────────────────
+const archiver = require('archiver');
+
+app.get('/api/posts/:id/export-carousel', async (req, res) => {
+  const post = db.findById(req.params.id);
+  if (!post) return res.status(404).json({ error: 'Post nao encontrado' });
+  if (!post.slides || post.slides.length === 0) return res.status(400).json({ error: 'Post sem slides' });
+
+  const slidesWithImages = post.slides.filter(s => s.image_url);
+  if (slidesWithImages.length === 0) return res.status(400).json({ error: 'Nenhum slide com imagem gerada' });
+
+  const safeName = (post.hook || 'carrossel').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-').substring(0, 40);
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}-carrossel.zip"`);
+
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.pipe(res);
+
+  for (let i = 0; i < post.slides.length; i++) {
+    const slide = post.slides[i];
+    if (!slide.image_url) continue;
+    const imgPath = path.join(__dirname, '..', 'data', slide.image_url.replace('/images/', 'images/'));
+    if (fs.existsSync(imgPath)) {
+      const label = slide.label.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-').substring(0, 30);
+      archive.file(imgPath, { name: `${String(i + 1).padStart(2, '0')}-${label}.png` });
+    }
+  }
+
+  archive.finalize();
 });
 
 // ── Export to DOCX (Google Docs compatible) ─────────────────

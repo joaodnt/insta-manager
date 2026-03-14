@@ -16,8 +16,8 @@ export const api = {
   deletePost:  (id: string) => req<{ ok: boolean }>(`/api/posts/${id}`, { method: 'DELETE' }),
   bulkDelete:  (ids: string[]) => req<{ ok: boolean; deleted: number }>('/api/posts/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   getStats:    () => req<Stats>('/api/stats'),
-  generateImage: (prompt: string, postId?: string) =>
-    req<{ url: string; filename: string }>('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, postId }) }),
+  generateImage: (prompt: string, postId?: string, aspectRatio?: string) =>
+    req<{ url: string; filename: string }>('/api/generate-image', { method: 'POST', body: JSON.stringify({ prompt, postId, aspectRatio: aspectRatio || '1:1' }) }),
   rewriteCopy: (data: { caption: string; hook: string; references: string; formato: string }) =>
     req<{ hook: string; caption: string }>('/api/rewrite-copy', { method: 'POST', body: JSON.stringify(data) }),
   rewriteSection: (data: { section: string; content: string; context?: string; references?: string; formato: string }) =>
@@ -30,6 +30,7 @@ export const api = {
     req<{ news: { title: string; summary: string; source: string; url: string }[] }>('/api/fetch-news', { method: 'POST', body: JSON.stringify({}) }),
   generateSlidesImages: (data: { postId: string; slides: Slide[]; aspectRatio: string }) =>
     req<{ results: { index: number; url: string | null; error?: string }[] }>('/api/generate-slides-images', { method: 'POST', body: JSON.stringify(data) }),
+  exportCarouselUrl: (postId: string) => `${import.meta.env.DEV ? 'http://localhost:3001' : ''}/api/posts/${postId}/export-carousel`,
   getSettings:   () => req<Record<string, string>>('/api/settings'),
   saveSettings:  (data: Record<string, string>) => req<{ ok: boolean }>('/api/settings', { method: 'POST', body: JSON.stringify(data) }),
 };

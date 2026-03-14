@@ -117,7 +117,7 @@ function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveU
     if (!slide.image_prompt.trim()) return alert('Gere ou escreva um prompt primeiro.');
     setImgLoading(true);
     try {
-      const { url } = await api.generateImage(slide.image_prompt, `${postId}-slide-${index + 1}`);
+      const { url } = await api.generateImage(slide.image_prompt, `${postId}-slide-${index + 1}-${Date.now()}`, aspectRatio);
       onUpdate({ ...slide, image_url: url });
     } catch (err: any) {
       alert('Erro ao gerar imagem: ' + err.message);
@@ -626,8 +626,21 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                     <button onClick={batchGenerate} disabled={batchLoading || contentGenLoading}
                       className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
                       style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
-                      {batchLoading ? 'Gerando...' : 'Gerar imagens'}
+                      {batchLoading ? 'Gerando...' : 'Gerar todas imagens'}
                     </button>
+                    {slides.some(s => s.image_url) && (
+                      <a href={api.exportCarouselUrl(post.id)} download
+                        className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5 no-underline"
+                        style={{ background: '#16A34A', color: '#FFF' }}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          // Save first to ensure slides are persisted
+                          await api.updatePost(post.id, form);
+                          window.open(api.exportCarouselUrl(post.id), '_blank');
+                        }}>
+                        📥 Exportar ZIP
+                      </a>
+                    )}
                   </div>
                 </div>
 
