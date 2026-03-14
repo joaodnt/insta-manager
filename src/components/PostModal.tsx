@@ -228,7 +228,32 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
   const [batchAspect, setBatchAspect] = useState('1:1');
   const [saved, setSaved] = useState(false);
   const [autoGenTriggered, setAutoGenTriggered] = useState(false);
+  const [copiedCopy, setCopiedCopy] = useState(false);
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+
+  // Copy all text content to clipboard for Figma
+  const exportCopy = () => {
+    const lines: string[] = [];
+    const pilarLabel = PILAR_CFG[(form.pilar || post.pilar) as keyof typeof PILAR_CFG]?.label || '';
+    lines.push(`PILAR: ${pilarLabel}`);
+    lines.push(`FORMATO: ${(form.formato || post.formato || '').toUpperCase()}`);
+    if (form.hook) lines.push(`\nHOOK:\n${form.hook}`);
+    if (slides.length > 0) {
+      lines.push(`\n${'='.repeat(40)}`);
+      slides.forEach((s, i) => {
+        lines.push(`\nSLIDE ${i + 1} — ${s.label}`);
+        lines.push(s.content || '(sem conteudo)');
+      });
+      lines.push(`\n${'='.repeat(40)}`);
+    }
+    if (form.caption) lines.push(`\nCAPTION:\n${form.caption}`);
+    if (form.corpo) lines.push(`\nCORPO:\n${form.corpo}`);
+    if (form.cta) lines.push(`\nCTA:\n${form.cta}`);
+    if (form.hashtags) lines.push(`\nHASHTAGS:\n${form.hashtags}`);
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopiedCopy(true);
+    setTimeout(() => setCopiedCopy(false), 2500);
+  };
 
   // Auto-generate content for new carousel posts
   const generateSlidesContent = async (pilar: string, topicOrHook: string, currentSlides: Slide[], formato: string, isTopicBased = false) => {
@@ -628,13 +653,17 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
                       style={{ background: '#1A1A1A', color: '#CCFF00', border: '1px solid #333' }}>
                       {batchLoading ? 'Gerando...' : 'Gerar todas imagens'}
                     </button>
+                    <button onClick={exportCopy}
+                      className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5"
+                      style={{ background: copiedCopy ? '#16A34A' : '#1A1A1A', color: copiedCopy ? '#FFF' : '#999', border: '1px solid #333' }}>
+                      {copiedCopy ? '✓ Copiado!' : '📋 Copiar copy'}
+                    </button>
                     {slides.some(s => s.image_url) && (
                       <a href={api.exportCarouselUrl(post.id)} download
                         className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5 no-underline"
                         style={{ background: '#16A34A', color: '#FFF' }}
                         onClick={async (e) => {
                           e.preventDefault();
-                          // Save first to ensure slides are persisted
                           await api.updatePost(post.id, form);
                           window.open(api.exportCarouselUrl(post.id), '_blank');
                         }}>
