@@ -74,7 +74,7 @@ app.post('/api/generate-image', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY não configurada.' });
 
-  const enhancedPrompt = `${prompt}. Professional, ultra-detailed, 4K quality image for Instagram post. Brand: Infomestre. No watermarks.`;
+  const enhancedPrompt = `${prompt}. Professional, ultra-detailed, 4K quality background image for Instagram post. Absolutely no text, no typography, no letters, no words in the image. No watermarks. Visual only.`;
 
   // Try Imagen 4.0 first (predict endpoint)
   try {
@@ -291,63 +291,47 @@ app.post('/api/generate-prompt', async (req, res) => {
   }
 
   try {
-    const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram de infoprodutos digitais no Brasil.
+    const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram.
 Marca: Infomestre — criador de cursos digitais brasileiro.
 
-ESTILO VISUAL OBRIGATORIO (baseado nos templates BrandsDecoded):
-- Estetica FUTURISTA e TECH: visual clean, premium, high-end digital
-- Fundo predominantemente preto profundo (#0A0A0A) com gradientes sutis escuros
-- Destaque verde limao neon (#CCFF00) como cor de acento — usado em highlights, bordas, glows
-- Branco (#FFFFFF) para elementos secundarios e contraste
-- Elementos visuais: formas geometricas abstratas, linhas finas luminosas, grids tech, patterns de circuito
-- Efeitos: glow neon sutil, glassmorphism, gradientes escuros, reflexos metalicos
-- Composicao: layouts assimetricos modernos, bastante espaco negativo, hierarquia visual forte
-- Mood: futurista, sofisticado, tech, inovador, premium
-- Inspiracao: design de interfaces futuristas, dashboards tech, estetica cyberpunk refinada
+Voce precisa criar um PROMPT DE IMAGEM para geracao com IA (Imagen/DALL-E).
+A imagem sera usada como FUNDO de um slide de carrossel. O TEXTO sera adicionado DEPOIS em outra ferramenta.
 
-REGRA CRITICA — TEXTO NA IMAGEM:
-- A imagem DEVE conter o TEXTO DO SLIDE escrito em PORTUGUES BRASILEIRO
-- O texto principal deve estar em destaque, legivel, com tipografia moderna e bold
-- Use a fonte estilo "Plus Jakarta Sans" ou sans-serif moderna e grossa
-- O texto deve ser integrado ao design como parte visual, nao sobreposto
-- Texto principal em branco (#FFFFFF) ou verde limao (#CCFF00) sobre fundo escuro
-- Mantenha hierarquia: titulo grande e impactante, subtexto menor se necessario
-- O texto na imagem deve ser EXATAMENTE o que esta no conteudo do slide (em portugues)
+IMPORTANTE — A IMAGEM NAO DEVE CONTER NENHUM TEXTO. Apenas visual puro.
 
-REGRA CRITICA — FUNDO DA IMAGEM:
-- O fundo NAO pode ser abstrato/aleatorio. Deve conter imagens REAIS relacionadas ao tema do post
-- Exemplos: se fala sobre YouTube, mostre a sede do YouTube ou interface do YouTube ao fundo
-- Se fala sobre Google, mostre logos/predios/produtos do Google ao fundo
-- Se fala sobre IA, mostre robots, interfaces de IA, chips, data centers ao fundo
-- O fundo deve ser escurecido (overlay preto 60-80% opacity) para o texto ficar legivel
-- Use imagens reais/fotorrealistas como background, NAO formas abstratas genericas
+ESTILO DA IMAGEM:
+- Paleta: fundo predominantemente preto/escuro (#0A0A0A), com acentos em verde limao neon (#CCFF00) e branco
+- Estetica: futurista, tech, premium, clean — inspirado nos templates BrandsDecoded
+- Efeitos sutis: glow neon, glassmorphism, gradientes escuros, reflexos metalicos
 
-BRANDING FIXO — SEMPRE incluir no design:
-- No topo: pequeno texto "Criador de cursos digitais" e logo "Infomestre" em verde limao (#CCFF00)
-- Paleta: fundo preto (#0A0A0A), verde neon (#CCFF00) para destaques, branco (#FFFFFF) para texto
-- Estetica premium, tech, futurista — inspirada nos templates BrandsDecoded
-- Fonte bold/extra-bold estilo Plus Jakarta Sans
+REGRA CRITICA — FUNDO CONTEXTUAL (NAO ABSTRATO):
+- O fundo da imagem DEVE mostrar elementos visuais REAIS e RECONHECIVEIS relacionados ao TEMA do slide
+- Exemplos concretos:
+  * Tema sobre YouTube → mostrar a interface do YouTube, sede da empresa, icone do play vermelho
+  * Tema sobre Google → mostrar a sede do Google, logo, interface do buscador, Googleplex
+  * Tema sobre IA → mostrar chips de processador, data centers, robots humanoides, interfaces de IA
+  * Tema sobre redes sociais → mostrar telas de celular com apps, interfaces de redes sociais
+  * Tema sobre vendas → mostrar dashboards, graficos de crescimento, ecommerce
+  * Tema sobre automacao → mostrar robots, linhas de producao, workflows digitais
+- O fundo contextual deve ter um overlay escuro (60-80% preto) para ficar sutilmente visivel
+- NUNCA use fundos 100% abstratos com formas geometricas aleatorias sem contexto
 
-Voce precisa criar um PROMPT para geracao de imagem de IA baseado no conteudo do slide.
-Formato: ${formato === 'carrossel' ? 'Carrossel Instagram (1:1 ou 4:5)' : formato === 'single' ? 'Post unico Instagram (1:1)' : 'Reel Instagram (9:16)'}
+Formato: ${formato === 'carrossel' ? 'Carrossel Instagram' : formato === 'single' ? 'Post unico Instagram' : 'Reel Instagram (9:16)'}
 ${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
 ${carouselContext}
 
 REGRAS DO PROMPT:
-- O prompt deve ser em INGLES (para melhor resultado na geracao)
-- MAS o texto que deve aparecer NA IMAGEM deve estar em PORTUGUES BRASILEIRO exatamente como escrito no conteudo
-- Inclua explicitamente no prompt: 'with bold text overlay in Brazilian Portuguese that reads: "TEXTO AQUI"'
-- Inclua o branding: 'At the top: small text "Criador de cursos digitais" and brand name "Infomestre" in neon lime green (#CCFF00)'
-- FUNDO: descreva uma imagem REAL relevante ao tema (sede de empresa, produto, interface, pessoa, etc) com dark overlay
-- Mencione que e para Instagram, profissional, alta qualidade, 4K
+- Prompt em INGLES
+- ZERO texto/tipografia/letras na imagem — apenas visual e composicao
+- Descreva o fundo contextual baseado no TEMA do conteudo do slide
+- Profissional, alta qualidade, 4K
 - Sem marcas d'agua
-- Adapte o visual ao tipo de slide (hook = impactante com glow forte, dados = infografico tech, CTA = call to action visual com destaque neon)
-- Para carrosseis: mantenha CONTINUIDADE VISUAL entre os slides (mesma paleta, estilo, composicao)
-- Sempre inclua: "dark futuristic tech aesthetic, black background (#0A0A0A), neon lime green (#CCFF00) accents"
+- Para carrosseis: mantenha CONTINUIDADE VISUAL entre os slides
+- Sempre inclua: "dark futuristic tech aesthetic, predominantly black background (#0A0A0A), neon lime green (#CCFF00) accent glows, absolutely no text or typography in the image"
 
 ${context ? `Contexto do post completo:\n${context}\n` : ''}
 
-Retorne APENAS o prompt em ingles (com o texto PT-BR embutido), sem explicacoes. JSON: { "prompt": "..." }`;
+Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -355,7 +339,7 @@ Retorne APENAS o prompt em ingles (com o texto PT-BR embutido), sem explicacoes.
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo do slide (ESTE TEXTO DEVE APARECER NA IMAGEM):\n${slideContent}` }] }],
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo/tema do slide (use como referencia para o fundo contextual, NAO coloque este texto na imagem):\n${slideContent}` }] }],
           generationConfig: { responseMimeType: 'application/json' },
         }),
       }
@@ -642,7 +626,7 @@ app.post('/api/generate-slides-images', async (req, res) => {
       continue;
     }
 
-    const enhancedPrompt = `${slide.image_prompt}. Professional, ultra-detailed, 4K quality. Slide ${i + 1} of Instagram carousel. Brand: Infomestre. No watermarks.`;
+    const enhancedPrompt = `${slide.image_prompt}. Professional, ultra-detailed, 4K quality background image. Slide ${i + 1} of Instagram carousel. Absolutely no text, no typography, no letters, no words in the image. No watermarks. Visual only.`;
 
     try {
       // Try Imagen 4.0
