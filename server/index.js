@@ -401,21 +401,43 @@ Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "u
     );
 
     const data = await apiRes.json();
-    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+    console.log('Fetch news API status:', apiRes.status);
+    if (!apiRes.ok) {
+      console.error('Fetch news API error:', JSON.stringify(data.error || data));
+      return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+    }
 
     // Google Search grounding returns text (not structured JSON), so extract JSON from it
     const parts = data.candidates?.[0]?.content?.parts || [];
     const text = parts.map(p => p.text || '').join('');
-    // Try to find JSON in the response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    console.log('Fetch news raw text length:', text.length);
+
+    // Try to find JSON array in the response
+    const jsonMatch = text.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
     if (jsonMatch) {
       try {
         const result = JSON.parse(jsonMatch[0]);
+        console.log('Fetch news parsed:', result.news?.length, 'items');
         return res.json({ news: result.news || [] });
+      } catch (e) {
+        console.error('JSON parse error:', e.message);
+      }
+    }
+
+    // Fallback: try to extract any JSON array
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try {
+        const arr = JSON.parse(arrayMatch[0]);
+        if (Array.isArray(arr) && arr.length > 0) {
+          console.log('Fetch news fallback parsed:', arr.length, 'items');
+          return res.json({ news: arr });
+        }
       } catch {}
     }
-    // If no valid JSON, try to parse structured news from text
-    res.json({ news: [] });
+
+    console.error('Could not parse news from response. First 500 chars:', text.substring(0, 500));
+    res.json({ news: [], raw: text.substring(0, 200) });
   } catch (err) {
     console.error('Fetch news error:', err.message);
     res.status(500).json({ error: err.message });
