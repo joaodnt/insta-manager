@@ -291,47 +291,48 @@ app.post('/api/generate-prompt', async (req, res) => {
   }
 
   try {
-    const systemPrompt = `Voce e um diretor de arte especialista em conteudo visual para Instagram.
-Marca: Infomestre — criador de cursos digitais brasileiro.
+    const systemPrompt = `You are an expert image prompt engineer. Your ONLY job is to create a prompt for AI image generation (Imagen 4).
 
-Voce precisa criar um PROMPT DE IMAGEM para geracao com IA (Imagen/DALL-E).
-A imagem sera usada como FUNDO de um slide de carrossel. O TEXTO sera adicionado DEPOIS em outra ferramenta.
+INPUT: A slide text from an Instagram carousel about tech/AI/digital business.
+OUTPUT: A JSON with a single "prompt" field containing an image generation prompt in English.
 
-IMPORTANTE — A IMAGEM NAO DEVE CONTER NENHUM TEXTO. Apenas visual puro.
+STEP 1 — EXTRACT from the slide text:
+- Company names (Google, Apple, Meta, OpenAI, Microsoft, Wiz, etc.)
+- Product names (Google Cloud, ChatGPT, YouTube, etc.)
+- Technologies (AI, machine learning, cybersecurity, blockchain, etc.)
+- Concepts (security, automation, data centers, etc.)
 
-ESTILO DA IMAGEM:
-- Paleta: fundo predominantemente preto/escuro (#0A0A0A), com acentos em verde limao neon (#CCFF00) e branco
-- Estetica: futurista, tech, premium, clean — inspirado nos templates BrandsDecoded
-- Efeitos sutis: glow neon, glassmorphism, gradientes escuros, reflexos metalicos
+STEP 2 — BUILD the prompt using REAL, RECOGNIZABLE visual elements:
+For each entity found, describe a PHOTOREALISTIC scene featuring that entity:
+- Google → Google headquarters building (Googleplex), Google logo glowing, Google Cloud server room
+- YouTube → YouTube play button icon, YouTube studio, YouTube interface on screen
+- Apple → Apple Park headquarters, Apple logo, MacBook/iPhone products
+- OpenAI → OpenAI office, ChatGPT interface on a large monitor
+- Meta → Meta headquarters with Infinity logo, VR headsets
+- Microsoft → Microsoft campus, Azure cloud servers, Windows interface
+- Wiz → Cloud security dashboard, cybersecurity operations center
+- Security/cybersecurity → Security operations center with monitors, digital shield, locked server room
+- AI → Humanoid robot face, neural network visualization, AI chip close-up, data center corridors
+- Automation → Robotic arms, conveyor belts, digital workflow dashboards
 
-REGRA CRITICA — FUNDO CONTEXTUAL (NAO ABSTRATO):
-- O fundo da imagem DEVE mostrar elementos visuais REAIS e RECONHECIVEIS relacionados ao TEMA do slide
-- Exemplos concretos:
-  * Tema sobre YouTube → mostrar a interface do YouTube, sede da empresa, icone do play vermelho
-  * Tema sobre Google → mostrar a sede do Google, logo, interface do buscador, Googleplex
-  * Tema sobre IA → mostrar chips de processador, data centers, robots humanoides, interfaces de IA
-  * Tema sobre redes sociais → mostrar telas de celular com apps, interfaces de redes sociais
-  * Tema sobre vendas → mostrar dashboards, graficos de crescimento, ecommerce
-  * Tema sobre automacao → mostrar robots, linhas de producao, workflows digitais
-- O fundo contextual deve ter um overlay escuro (60-80% preto) para ficar sutilmente visivel
-- NUNCA use fundos 100% abstratos com formas geometricas aleatorias sem contexto
+STEP 3 — COMPOSE the final prompt:
+Combine the real elements into a cinematic, photorealistic scene.
 
-Formato: ${formato === 'carrossel' ? 'Carrossel Instagram' : formato === 'single' ? 'Post unico Instagram' : 'Reel Instagram (9:16)'}
-${slideLabel ? `Tipo de slide: ${slideLabel}` : ''}
+MANDATORY STYLE RULES:
+- Dark moody lighting, predominantly black/dark tones
+- Neon lime green (#CCFF00) accent lights, glows, and highlights
+- Photorealistic, cinematic composition, 4K, ultra-detailed
+- ABSOLUTELY NO TEXT, NO TYPOGRAPHY, NO LETTERS, NO WORDS in the image
+- No watermarks
+- The image is a BACKGROUND — leave space for text to be overlaid later
+- Slightly darkened/dimmed to allow text readability on top
+
+${formato === 'carrossel' ? 'Format: Instagram carousel slide' : formato === 'single' ? 'Format: Instagram single post' : 'Format: Instagram Reel (9:16 vertical)'}
+${slideLabel ? `Slide type: ${slideLabel}` : ''}
 ${carouselContext}
+${context ? `Full post context:\n${context}\n` : ''}
 
-REGRAS DO PROMPT:
-- Prompt em INGLES
-- ZERO texto/tipografia/letras na imagem — apenas visual e composicao
-- Descreva o fundo contextual baseado no TEMA do conteudo do slide
-- Profissional, alta qualidade, 4K
-- Sem marcas d'agua
-- Para carrosseis: mantenha CONTINUIDADE VISUAL entre os slides
-- Sempre inclua: "dark futuristic tech aesthetic, predominantly black background (#0A0A0A), neon lime green (#CCFF00) accent glows, absolutely no text or typography in the image"
-
-${context ? `Contexto do post completo:\n${context}\n` : ''}
-
-Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
+Return ONLY valid JSON: { "prompt": "..." }`;
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -339,7 +340,7 @@ Retorne APENAS o prompt em ingles, sem explicacoes. JSON: { "prompt": "..." }`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${systemPrompt}\n\nConteudo/tema do slide (use como referencia para o fundo contextual, NAO coloque este texto na imagem):\n${slideContent}` }] }],
+          contents: [{ parts: [{ text: `${systemPrompt}\n\nSlide text to visualize (DO NOT render this text in the image, extract the entities and create a photorealistic scene):\n"${slideContent}"` }] }],
           generationConfig: { responseMimeType: 'application/json' },
         }),
       }
