@@ -278,15 +278,15 @@ app.post('/api/generate-prompt', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
 
-  // Build carousel continuity context
+  // Build carousel context — show ALL slides so AI knows what's different about THIS one
   let carouselContext = '';
   if (allSlides && Array.isArray(allSlides) && allSlides.length > 1) {
-    const prevSlides = allSlides
-      .filter((s, i) => i < (slideIndex || 0) && s.content)
-      .map((s, i) => `Slide ${i + 1} (${s.label}): "${s.content}"`)
+    const allCtx = allSlides
+      .filter(s => s.content)
+      .map((s, i) => `Slide ${i + 1} (${s.label}): "${s.content.substring(0, 100)}"${i === (slideIndex || 0) ? ' ← THIS IS THE CURRENT SLIDE' : ''}`)
       .join('\n');
-    if (prevSlides) {
-      carouselContext = `\nSLIDES ANTERIORES DO CARROSSEL (mantenha continuidade visual):\n${prevSlides}\n`;
+    if (allCtx) {
+      carouselContext = `\nALL SLIDES IN THIS CAROUSEL (each needs a COMPLETELY DIFFERENT scene/angle/setting):\n${allCtx}\n\nCRITICAL: This is slide ${(slideIndex || 0) + 1}. Each slide MUST have a unique visual scene. Do NOT reuse the same setting, angle, or composition from other slides.\n`;
     }
   }
 
@@ -328,6 +328,17 @@ MANDATORY STYLE RULES:
 - ABSOLUTELY NO TEXT, NO TYPOGRAPHY, NO LETTERS, NO WORDS in the image
 - No watermarks, no overlays, no abstract shapes, no geometric patterns
 - Slightly dimmed with a subtle dark vignette at the edges so text can be placed on top later
+
+SLIDE-SPECIFIC VISUAL DIFFERENTIATION (CRITICAL for carousels):
+Based on the slide type, use DIFFERENT visual approaches:
+- Hook slide → dramatic wide shot, hero image, most impactful visual
+- Context/story slides → medium shot showing the scenario, environment, workplace
+- Data/stats slides → close-up of screens with dashboards, charts on monitors
+- Process/how-to slides → hands working, tools in action, step-by-step visual
+- Problem/challenge slides → contrasting scene, obstacles, before state
+- Result/impact slides → success scene, growth visualization, achievement
+- Opinion/analysis slides → person thinking, expert at desk, analysis setup
+- CTA slides → forward-looking scene, path ahead, invitation visual
 
 ${formato === 'carrossel' ? 'Format: Instagram carousel slide' : formato === 'single' ? 'Format: Instagram single post' : 'Format: Instagram Reel (9:16 vertical)'}
 ${slideLabel ? `Slide type: ${slideLabel}` : ''}
