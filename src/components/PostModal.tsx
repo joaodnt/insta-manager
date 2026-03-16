@@ -259,7 +259,26 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     setTimeout(() => setCopiedCopy(false), 2500);
   };
 
-  // Auto-generate content for new carousel posts
+  // Auto-generate content for Reel/Single posts (hook + corpo + CTA + caption)
+  const generatePostContent = async (pilar: string, topicOrHook: string, formato: string) => {
+    setContentGenLoading(true);
+    try {
+      const result = await api.generatePostContent({ pilar, topic: topicOrHook || undefined, formato });
+      const updates: Partial<Post> = {};
+      if (result.hook) updates.hook = result.hook;
+      if (result.corpo) updates.corpo = result.corpo;
+      if (result.cta) updates.cta = result.cta;
+      if (result.caption) updates.caption = result.caption;
+      setForm(f => ({ ...f, ...updates }));
+    } catch (err: any) {
+      console.error('Erro ao gerar conteudo:', err.message);
+      alert('Erro ao gerar conteudo: ' + (err.message || 'Tente novamente'));
+    } finally {
+      setContentGenLoading(false);
+    }
+  };
+
+  // Auto-generate content for carousel posts
   const generateSlidesContent = async (pilar: string, topicOrHook: string, currentSlides: Slide[], formato: string, isTopicBased = false) => {
     setContentGenLoading(true);
     try {
@@ -310,7 +329,10 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
       if (p.formato === 'carrossel' && (!p.slides || p.slides.length === 0)) {
         const defaultSlides = getDefaultSlidesForPilar(p.pilar);
         p.slides = defaultSlides;
-        // Always auto-generate for new carousel posts (with or without hook)
+        shouldAutoGen = true;
+      }
+      // Auto-generate for reel/single if new post (no corpo, no hook with real content)
+      if ((p.formato === 'reel' || p.formato === 'single') && !p.corpo) {
         shouldAutoGen = true;
       }
       setForm(p);
@@ -323,11 +345,16 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
 
   // Auto-generate content when triggered
   useEffect(() => {
-    if (autoGenTriggered && form.pilar && form.slides && form.slides.length > 0) {
-      const topicOrHook = form.hook || '';
-      const isTopicBased = true; // always generate hook for new posts
-      generateSlidesContent(form.pilar, topicOrHook, form.slides as Slide[], form.formato || 'carrossel', isTopicBased);
-      setAutoGenTriggered(false);
+    if (!autoGenTriggered || !form.pilar) return;
+    setAutoGenTriggered(false);
+
+    const formato = form.formato || 'carrossel';
+    const topicOrHook = form.hook || '';
+
+    if (formato === 'carrossel' && form.slides && form.slides.length > 0) {
+      generateSlidesContent(form.pilar, topicOrHook, form.slides as Slide[], formato, true);
+    } else if (formato === 'reel' || formato === 'single') {
+      generatePostContent(form.pilar, topicOrHook, formato);
     }
   }, [autoGenTriggered]);
 
@@ -581,6 +608,39 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
             {isReel ? (
               /* ═══ REEL: 3 script sections ═══ */
               <>
+                {/* Generate content button + loading */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => generatePostContent(form.pilar || post.pilar, form.hook || '', form.formato || post.formato)}
+                    disabled={contentGenLoading}
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+                    style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+                    <span style={{ fontSize: '8px', fontWeight: 800, background: '#0A0A0A', color: '#CCFF00', borderRadius: '3px', padding: '1px 4px' }}>IA</span>
+                    {contentGenLoading ? 'Gerando conteudo...' : 'Gerar conteudo'}
+                  </button>
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5"
+                    style={{ background: copiedCopy ? '#16A34A' : '#1A1A1A', color: copiedCopy ? '#FFF' : '#999', border: '1px solid #333' }}
+                    onClick={() => {
+                      const lines = [`PILAR: ${PILAR_CFG[(form.pilar || post.pilar) as keyof typeof PILAR_CFG]?.label}`, `FORMATO: REEL`];
+                      if (form.hook) lines.push(`\nHOOK:\n${form.hook}`);
+                      if (form.corpo) lines.push(`\nCORPO:\n${form.corpo}`);
+                      if (form.cta) lines.push(`\nCTA:\n${form.cta}`);
+                      if (form.caption) lines.push(`\nCAPTION:\n${form.caption}`);
+                      navigator.clipboard.writeText(lines.join('\n'));
+                      setCopiedCopy(true); setTimeout(() => setCopiedCopy(false), 2000);
+                    }}>
+                    {copiedCopy ? '✓ Copiado!' : '📋 Copiar copy'}
+                  </button>
+                </div>
+                {contentGenLoading && (
+                  <div className="rounded-lg p-4 text-center space-y-2" style={{ background: '#111', border: '1px solid #CCFF0033' }}>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 rounded-full animate-pulse" style={{ background: '#CCFF00' }} />
+                      <span className="text-sm font-semibold" style={{ color: '#CCFF00' }}>Gerando conteudo com IA...</span>
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-lg p-4 space-y-1" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#CCFF00', color: '#0A0A0A' }}>1</span>
@@ -726,6 +786,37 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
             ) : (
               /* ═══ SINGLE: Hook + Caption ═══ */
               <>
+                {/* Generate content button + loading */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => generatePostContent(form.pilar || post.pilar, form.hook || '', form.formato || post.formato)}
+                    disabled={contentGenLoading}
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all disabled:opacity-30 flex items-center gap-1.5"
+                    style={{ background: '#CCFF00', color: '#0A0A0A' }}>
+                    <span style={{ fontSize: '8px', fontWeight: 800, background: '#0A0A0A', color: '#CCFF00', borderRadius: '3px', padding: '1px 4px' }}>IA</span>
+                    {contentGenLoading ? 'Gerando conteudo...' : 'Gerar conteudo'}
+                  </button>
+                  <button
+                    className="text-xs px-3 py-1.5 rounded-md font-semibold transition-all flex items-center gap-1.5"
+                    style={{ background: copiedCopy ? '#16A34A' : '#1A1A1A', color: copiedCopy ? '#FFF' : '#999', border: '1px solid #333' }}
+                    onClick={() => {
+                      const lines = [`PILAR: ${PILAR_CFG[(form.pilar || post.pilar) as keyof typeof PILAR_CFG]?.label}`, `FORMATO: SINGLE`];
+                      if (form.hook) lines.push(`\nHOOK:\n${form.hook}`);
+                      if (form.caption) lines.push(`\nCAPTION:\n${form.caption}`);
+                      navigator.clipboard.writeText(lines.join('\n'));
+                      setCopiedCopy(true); setTimeout(() => setCopiedCopy(false), 2000);
+                    }}>
+                    {copiedCopy ? '✓ Copiado!' : '📋 Copiar copy'}
+                  </button>
+                </div>
+                {contentGenLoading && (
+                  <div className="rounded-lg p-4 text-center space-y-2" style={{ background: '#111', border: '1px solid #CCFF0033' }}>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 rounded-full animate-pulse" style={{ background: '#CCFF00' }} />
+                      <span className="text-sm font-semibold" style={{ color: '#CCFF00' }}>Gerando conteudo com IA...</span>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium mb-1" style={labelStyle}>Hook</label>
                   <input type="text" className="w-full text-sm rounded-lg px-3 py-2 outline-none font-semibold"

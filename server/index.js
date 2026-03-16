@@ -563,6 +563,97 @@ REGRAS ESPECIFICAS:
 - Use dados, numeros e fatos concretos sempre que possivel`,
 };
 
+// ── Generate content for Reel/Single posts (hook + corpo + CTA + caption) ────
+app.post('/api/generate-post-content', async (req, res) => {
+  const { pilar, topic, formato } = req.body;
+  if (!pilar) return res.status(400).json({ error: 'pilar obrigatorio' });
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
+
+  const pilarContext = PILAR_PROMPTS[pilar] || PILAR_PROMPTS['bastidores'];
+  const input = topic || '';
+  const isAutoIdea = !input.trim();
+
+  let contextBlock = '';
+  if (isAutoIdea) {
+    contextBlock = `Voce precisa INVENTAR uma ideia ORIGINAL e RELEVANTE de post para o pilar descrito acima.
+Crie algo que seria viral no Instagram de infoprodutos. Pense em:
+- O que o publico-alvo esta sentindo/pensando agora
+- Tendencias atuais do mercado digital
+- Dores e desejos de infoprodutores brasileiros
+- Algo provocador, educativo ou inspirador`;
+  } else {
+    contextBlock = `O TEMA/ASSUNTO do post e: "${input}"
+Baseado neste tema, pesquise/desenvolva o conteudo.`;
+  }
+
+  const isReel = formato === 'reel';
+
+  const systemPrompt = `Voce e um copywriter e estrategista de conteudo do Instagram @ojoaonetocp — marca Infomestre.
+Criador: Joao Neto, infoprodutor brasileiro que ensina a criar e automatizar infoprodutos com IA.
+
+${pilarContext}
+
+REGRAS OBRIGATORIAS:
+- Tudo em PORTUGUES BRASILEIRO (PT-BR) natural e conversacional
+- Linguagem informal brasileira real (nao de Portugal)
+- Sem cliches batidos
+- Sem emojis excessivos (maximo 2-3 no total)
+
+${contextBlock}
+
+${isReel ? `Voce precisa gerar o conteudo para um REEL do Instagram:
+- HOOK: A frase dos primeiros 3 segundos que para o scroll (1-2 linhas, impactante, curiosa)
+- CORPO: O roteiro/script do Reel (8-15 linhas, desenvolvimento completo, passos ou argumentos claros)
+- CTA: Chamada para acao no final (2-3 linhas, mandar seguir, salvar, comentar)
+- CAPTION: Legenda do post (3-5 linhas com hashtags relevantes)` : `Voce precisa gerar o conteudo para um POST UNICO (single) do Instagram:
+- HOOK: Frase impactante principal do post (1-2 linhas)
+- CORPO: Texto de desenvolvimento (5-10 linhas)
+- CTA: Chamada para acao (2-3 linhas)
+- CAPTION: Legenda do post (3-5 linhas com hashtags relevantes)`}
+
+Retorne JSON: { "hook": "...", "corpo": "...", "cta": "...", "caption": "..." }`;
+
+  try {
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+    const data = await apiRes.json();
+    if (!apiRes.ok) return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const text = parts.map(p => p.text || '').join('');
+    if (!text) return res.status(500).json({ error: 'Resposta vazia da IA' });
+
+    try {
+      const result = JSON.parse(text);
+      console.log('generate-post-content OK:', Object.keys(result));
+      res.json(result);
+    } catch {
+      // Try extracting JSON
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const result = JSON.parse(jsonMatch[0]);
+        res.json(result);
+      } else {
+        res.status(500).json({ error: 'Resposta invalida da IA' });
+      }
+    }
+  } catch (err) {
+    console.error('generate-post-content error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/generate-slides-content', async (req, res) => {
   const { pilar, hook, topic, slides, formato } = req.body;
   const input = topic || hook || ''; // can be empty for auto-idea mode
