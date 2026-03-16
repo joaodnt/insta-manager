@@ -304,28 +304,30 @@ STEP 1 — EXTRACT from the slide text:
 
 STEP 2 — BUILD the prompt using REAL, RECOGNIZABLE visual elements:
 For each entity found, describe a PHOTOREALISTIC scene featuring that entity:
-- Google → Google headquarters building (Googleplex), Google logo glowing, Google Cloud server room
-- YouTube → YouTube play button icon, YouTube studio, YouTube interface on screen
-- Apple → Apple Park headquarters, Apple logo, MacBook/iPhone products
-- OpenAI → OpenAI office, ChatGPT interface on a large monitor
-- Meta → Meta headquarters with Infinity logo, VR headsets
-- Microsoft → Microsoft campus, Azure cloud servers, Windows interface
-- Wiz → Cloud security dashboard, cybersecurity operations center
-- Security/cybersecurity → Security operations center with monitors, digital shield, locked server room
-- AI → Humanoid robot face, neural network visualization, AI chip close-up, data center corridors
-- Automation → Robotic arms, conveyor belts, digital workflow dashboards
+- Google → Google headquarters building (Googleplex), the real Google logo on a building, Google Cloud server room with real racks
+- YouTube → the real YouTube red play button icon, YouTube HQ in San Bruno, YouTube app interface on a real phone screen
+- Apple → Apple Park aerial view, the real Apple logo on glass building, real MacBook/iPhone products on a desk
+- OpenAI → real OpenAI office lobby, ChatGPT interface on a real computer monitor, Sam Altman speaking
+- Meta → real Meta headquarters sign with Infinity loop logo, real Quest VR headsets on display
+- Microsoft → real Microsoft campus in Redmond, Azure data center interior, real Surface devices
+- Wiz → real cybersecurity operations center with multiple screens showing dashboards, cloud security monitoring room
+- Security/cybersecurity → real security operations center (SOC) with analysts at screens, server room with blinking lights
+- AI → real NVIDIA GPU chips on a circuit board, real data center corridor with server racks, real robot arm in lab
+- Automation → real robotic arms in a car factory, real warehouse with automated conveyor belts
+- Ecommerce → real Amazon-style fulfillment center, real shopping app on phone screen
+- Startup → real modern Silicon Valley office, real whiteboard with sticky notes, real team meeting
 
 STEP 3 — COMPOSE the final prompt:
-Combine the real elements into a cinematic, photorealistic scene.
+Combine the real elements into a PHOTOREALISTIC scene that looks like a real photograph.
 
 MANDATORY STYLE RULES:
-- Dark moody lighting, predominantly black/dark tones
-- Neon lime green (#CCFF00) accent lights, glows, and highlights
-- Photorealistic, cinematic composition, 4K, ultra-detailed
+- PHOTOREALISTIC — must look like a real photo taken with a professional camera
+- Real-world lighting: natural daylight, office fluorescent lights, screen glow — NOT neon, NOT dark moody
+- Real locations, real buildings, real products, real people (when appropriate)
+- Professional editorial photography style, 4K, ultra-detailed, sharp focus
 - ABSOLUTELY NO TEXT, NO TYPOGRAPHY, NO LETTERS, NO WORDS in the image
-- No watermarks
-- The image is a BACKGROUND — leave space for text to be overlaid later
-- Slightly darkened/dimmed to allow text readability on top
+- No watermarks, no overlays, no abstract shapes, no geometric patterns
+- Slightly dimmed with a subtle dark vignette at the edges so text can be placed on top later
 
 ${formato === 'carrossel' ? 'Format: Instagram carousel slide' : formato === 'single' ? 'Format: Instagram single post' : 'Format: Instagram Reel (9:16 vertical)'}
 ${slideLabel ? `Slide type: ${slideLabel}` : ''}

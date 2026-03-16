@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Post, Slide } from '../types';
 import { api } from '../api';
 import { PilarBadge, FormatoBadge } from './Badge';
@@ -84,7 +84,7 @@ function SectionRewriteBtn({ section, content, context, formato, onRewrite }: {
 // ── Slide editor for Carousel ──────────────────────────────
 function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveUp, onMoveDown, postId, allSlides }: {
   slide: Slide; index: number; total: number; formato: string;
-  onUpdate: (s: Slide) => void; onRemove: () => void;
+  onUpdate: (s: Slide | ((prev: Slide) => Slide)) => void; onRemove: () => void;
   onMoveUp: () => void; onMoveDown: () => void; postId: string;
   allSlides?: { label: string; content: string }[];
 }) {
@@ -92,20 +92,23 @@ function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveU
   const [imgLoading, setImgLoading] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('1:1');
   const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+  const slideRef = useRef(slide);
+  slideRef.current = slide;
   const imgSrc = slide.image_url ? BASE + slide.image_url : null;
 
   const generatePrompt = async () => {
-    if (!slide.content.trim()) return alert('Escreva o conteudo do slide primeiro.');
+    if (!slideRef.current.content.trim()) return alert('Escreva o conteudo do slide primeiro.');
     setPromptLoading(true);
     try {
       const { prompt } = await api.generatePrompt({
-        slideLabel: slide.label,
-        slideContent: slide.content,
+        slideLabel: slideRef.current.label,
+        slideContent: slideRef.current.content,
         formato,
         slideIndex: index,
         allSlides: allSlides,
       });
-      onUpdate({ ...slide, image_prompt: prompt });
+      // Use latest slide state to avoid overwriting other fields
+      onUpdate({ ...slideRef.current, image_prompt: prompt });
     } catch (err: any) {
       alert('Erro ao gerar prompt: ' + err.message);
     } finally {
@@ -114,11 +117,12 @@ function SlideEditor({ slide, index, total, formato, onUpdate, onRemove, onMoveU
   };
 
   const generateImage = async () => {
-    if (!slide.image_prompt.trim()) return alert('Gere ou escreva um prompt primeiro.');
+    if (!slideRef.current.image_prompt.trim()) return alert('Gere ou escreva um prompt primeiro.');
     setImgLoading(true);
     try {
-      const { url } = await api.generateImage(slide.image_prompt, `${postId}-slide-${index + 1}-${Date.now()}`, aspectRatio);
-      onUpdate({ ...slide, image_url: url });
+      const { url } = await api.generateImage(slideRef.current.image_prompt, `${postId}-slide-${index + 1}-${Date.now()}`, aspectRatio);
+      // Use latest slide state to avoid overwriting prompt or content
+      onUpdate({ ...slideRef.current, image_url: url });
     } catch (err: any) {
       alert('Erro ao gerar imagem: ' + err.message);
     } finally {
