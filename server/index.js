@@ -392,12 +392,14 @@ FONTES PRIORITARIAS: TechCrunch, Wired, The Verge, VentureBeat, Ars Technica, CN
 
 REGRAS:
 - Retorne entre 6 a 10 noticias REAIS e ATUAIS
-- Cada noticia deve ter: titulo, resumo curto (2-3 frases), fonte (nome do site), e URL real
+- Cada noticia deve ter: titulo, resumo curto (2-3 frases), fonte (nome do site), e URL REAL da materia original
+- A URL deve ser o link REAL e COMPLETO da materia (ex: https://techcrunch.com/2025/...)
 - Priorize noticias de HOJE ou dos ultimos 3 dias
 - Foque em noticias que impactam infoprodutores e empreendedores digitais brasileiros
 - Tudo em PORTUGUES BRASILEIRO
+- IMPORTANTE: Use APENAS URLs que voce encontrou na busca. NAO invente URLs.
 
-Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "..." }] }`;
+Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "https://..." }] }`;
 
     const apiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -418,33 +420,79 @@ Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "u
       return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
     }
 
-    // Google Search grounding returns text (not structured JSON), so extract JSON from it
+    // Extract grounding metadata (real URLs from Google Search)
+    const groundingMeta = data.candidates?.[0]?.groundingMetadata;
+    const groundingChunks = groundingMeta?.groundingChunks || [];
+    const groundingUrls = groundingChunks
+      .filter(c => c.web)
+      .map(c => ({ title: c.web.title || '', url: c.web.uri || '' }));
+    console.log('Grounding URLs found:', groundingUrls.length);
+
+    // Extract text content
     const parts = data.candidates?.[0]?.content?.parts || [];
     const text = parts.map(p => p.text || '').join('');
     console.log('Fetch news raw text length:', text.length);
 
-    // Try to find JSON array in the response
+    // Try to find JSON in the response
+    let newsItems = [];
     const jsonMatch = text.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
     if (jsonMatch) {
       try {
         const result = JSON.parse(jsonMatch[0]);
-        console.log('Fetch news parsed:', result.news?.length, 'items');
-        return res.json({ news: result.news || [] });
+        newsItems = result.news || [];
       } catch (e) {
         console.error('JSON parse error:', e.message);
       }
     }
 
     // Fallback: try to extract any JSON array
-    const arrayMatch = text.match(/\[[\s\S]*\]/);
-    if (arrayMatch) {
-      try {
-        const arr = JSON.parse(arrayMatch[0]);
-        if (Array.isArray(arr) && arr.length > 0) {
-          console.log('Fetch news fallback parsed:', arr.length, 'items');
-          return res.json({ news: arr });
+    if (newsItems.length === 0) {
+      const arrayMatch = text.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        try {
+          const arr = JSON.parse(arrayMatch[0]);
+          if (Array.isArray(arr) && arr.length > 0) newsItems = arr;
+        } catch {}
+      }
+    }
+
+    // If we got news items, enrich URLs with grounding data
+    if (newsItems.length > 0) {
+      // Try to match news items with grounding URLs by source/title similarity
+      for (let i = 0; i < newsItems.length; i++) {
+        const item = newsItems[i];
+        // If URL is missing or looks fake (no real domain), try to find real URL from grounding
+        if (!item.url || item.url.includes('example.com') || item.url === '#' || item.url.length < 10) {
+          // Find best matching grounding URL by title similarity
+          const match = groundingUrls.find(g =>
+            g.title && item.title && (
+              g.title.toLowerCase().includes(item.title.substring(0, 20).toLowerCase()) ||
+              item.title.toLowerCase().includes(g.title.substring(0, 20).toLowerCase()) ||
+              (item.source && g.url.toLowerCase().includes(item.source.toLowerCase().replace(/\s/g, '')))
+            )
+          );
+          if (match) {
+            item.url = match.url;
+          } else if (groundingUrls[i]) {
+            // Fallback: use the grounding URL at the same index
+            item.url = groundingUrls[i].url;
+          }
         }
-      } catch {}
+      }
+      console.log('Fetch news final:', newsItems.length, 'items');
+      return res.json({ news: newsItems });
+    }
+
+    // Last resort: build news items from grounding metadata alone
+    if (groundingUrls.length > 0) {
+      console.log('Building news from grounding URLs only');
+      const builtNews = groundingUrls.slice(0, 10).map((g, i) => ({
+        title: g.title || `Noticia ${i + 1}`,
+        summary: '',
+        source: new URL(g.url).hostname.replace('www.', ''),
+        url: g.url,
+      }));
+      return res.json({ news: builtNews });
     }
 
     console.error('Could not parse news from response. First 500 chars:', text.substring(0, 500));

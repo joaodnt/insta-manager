@@ -562,15 +562,15 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-semibold mb-1" style={{ color: '#E5E5E5' }}>{news.title}</h3>
                         <p className="text-xs mb-1.5 line-clamp-2" style={{ color: '#888' }}>{news.summary}</p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: '#1A1A1A', color: '#CCFF00' }}>
                             {news.source}
                           </span>
                           {news.url && (
                             <a href={news.url} target="_blank" rel="noopener noreferrer"
-                              className="text-xs underline" style={{ color: '#555' }}
+                              className="text-xs underline truncate" style={{ color: '#0891B2', maxWidth: '300px' }}
                               onClick={e => e.stopPropagation()}>
-                              Ver original ↗
+                              🔗 {news.url.length > 60 ? news.url.substring(0, 60) + '...' : news.url}
                             </a>
                           )}
                         </div>
