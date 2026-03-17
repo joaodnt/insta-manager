@@ -432,7 +432,7 @@ function CalendarView({ posts, onOpen }: { posts: Post[]; onOpen: (p: Post) => v
 }
 
 // ── New post modal (simplified — auto-generates idea per pilar, news picker for noticias) ──
-interface NewsItem { title: string; summary: string; source: string; url: string; }
+interface NewsItem { title: string; summary: string; source: string; url: string; date?: string; }
 
 function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p: Post) => void }) {
   const [form, setForm] = useState({ pilar: 'bastidores' as Pilar, formato: 'carrossel' as Formato, scheduled_date: '', hashtags: '#infoproduto #automatizacao #IA #infomestre' });
@@ -566,6 +566,11 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
                           <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: '#1A1A1A', color: '#CCFF00' }}>
                             {news.source}
                           </span>
+                          {news.date && (
+                            <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#1A1A1A', color: '#888' }}>
+                              📅 {new Date(news.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            </span>
+                          )}
                           {news.url && (
                             <a href={news.url} target="_blank" rel="noopener noreferrer"
                               className="text-xs underline truncate" style={{ color: '#0891B2', maxWidth: '300px' }}

@@ -380,14 +380,23 @@ app.post('/api/fetch-news', async (req, res) => {
 
   try {
     // ═══ STEP 1: Use Google Search grounding to get REAL URLs ═══
-    const searchPrompt = `Busque as noticias mais recentes (de hoje ou desta semana) sobre:
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const searchPrompt = `Busque SOMENTE noticias publicadas entre ${weekAgo} e ${today} (ultimos 7 dias) sobre:
 - Inteligencia Artificial (novos modelos, ferramentas, atualizacoes da OpenAI, Google, Meta, etc)
 - Automacao de marketing e vendas
 - Big Tech (Google, Meta, OpenAI, Microsoft, Apple, Amazon)
 - Ferramentas digitais e SaaS
 - Tendencias de mercado digital
 
-Liste cada noticia encontrada com titulo e resumo curto.`;
+IMPORTANTE:
+- SOMENTE noticias dos ULTIMOS 7 DIAS (de ${weekAgo} ate ${today})
+- Ordene da MAIS RECENTE para a MAIS ANTIGA
+- Para cada noticia, mencione a data de publicacao
+- Priorize noticias de HOJE e de ONTEM
+
+Liste cada noticia encontrada com titulo, data de publicacao e resumo curto.`;
 
     const searchRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -467,7 +476,7 @@ Liste cada noticia encontrada com titulo e resumo curto.`;
       `${i + 1}. TITULO: ${g.title}\n   URL_REAL: ${g.url}`
     ).join('\n');
 
-    const describePrompt = `Aqui estao noticias reais encontradas via Google Search. Para cada uma, crie um titulo atrativo em portugues e um resumo curto (2-3 frases).
+    const describePrompt = `Aqui estao noticias reais encontradas via Google Search. Para cada uma, crie um titulo atrativo em portugues, um resumo curto e identifique a data de publicacao.
 
 NOTICIAS COM URLs REAIS VERIFICADAS:
 ${urlList}
@@ -475,14 +484,19 @@ ${urlList}
 CONTEXTO ADICIONAL DAS NOTICIAS:
 ${searchText.substring(0, 3000)}
 
+DATA DE HOJE: ${today}
+
 REGRAS:
 - Titulo em PORTUGUES BRASILEIRO, atrativo para Instagram
 - Resumo curto (2-3 frases) em PT-BR focado em impacto para empreendedores digitais
 - Source = nome do site (extraia do dominio da URL_REAL)
 - URL = copie EXATAMENTE a URL_REAL fornecida — NAO modifique nenhum caractere
-- Retorne TODAS as noticias
+- date = data de publicacao no formato "YYYY-MM-DD" (extraia do contexto ou URL). Se nao souber, use "${today}"
+- ORDENE da mais recente para a mais antiga
+- DESCARTE noticias com mais de 7 dias (anteriores a ${weekAgo})
+- Retorne TODAS as noticias validas
 
-JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "copiar URL_REAL exata" }] }`;
+JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "copiar URL_REAL exata", "date": "YYYY-MM-DD" }] }`;
 
     const descRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,

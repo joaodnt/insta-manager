@@ -29,7 +29,7 @@ export const api = {
   generatePostContent: (data: { pilar: string; topic?: string; formato: string }) =>
     req<{ hook: string; corpo: string; cta: string; caption: string }>('/api/generate-post-content', { method: 'POST', body: JSON.stringify(data) }),
   fetchNews: () =>
-    req<{ news: { title: string; summary: string; source: string; url: string }[] }>('/api/fetch-news', { method: 'POST', body: JSON.stringify({}) }),
+    req<{ news: { title: string; summary: string; source: string; url: string; date?: string }[] }>('/api/fetch-news', { method: 'POST', body: JSON.stringify({}) }),
   generateSlidesImages: (data: { postId: string; slides: Slide[]; aspectRatio: string }) =>
     req<{ results: { index: number; url: string | null; error?: string }[] }>('/api/generate-slides-images', { method: 'POST', body: JSON.stringify(data) }),
   exportCarouselUrl: (postId: string) => `${import.meta.env.DEV ? 'http://localhost:3001' : ''}/api/posts/${postId}/export-carousel`,
