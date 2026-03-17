@@ -407,45 +407,82 @@ Liste cada noticia encontrada com titulo e resumo curto.`;
       return res.status(500).json({ error: searchData.error?.message || 'Erro API Gemini' });
     }
 
-    // Extract REAL URLs from grounding metadata — these are the ONLY trustworthy URLs
+    // Extract grounding metadata
     const groundingMeta = searchData.candidates?.[0]?.groundingMetadata;
     const groundingChunks = groundingMeta?.groundingChunks || [];
-    const searchSupport = groundingMeta?.searchEntryPoint || null;
-    const groundingUrls = groundingChunks
+    const rawGroundingUrls = groundingChunks
       .filter(c => c.web && c.web.uri)
-      .map(c => ({ title: (c.web.title || '').trim(), url: c.web.uri }));
+      .map(c => ({ title: (c.web.title || '').trim(), redirectUrl: c.web.uri }));
 
-    console.log('Grounding URLs found:', groundingUrls.length, groundingUrls.map(g => g.url));
+    console.log('Grounding chunks found:', rawGroundingUrls.length);
 
-    // Also get the AI text for context
+    // Get the AI text content (has the actual news summaries)
     const searchText = (searchData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
 
-    if (groundingUrls.length === 0) {
-      console.error('No grounding URLs found. Text:', searchText.substring(0, 500));
-      return res.json({ news: [], error: 'Nenhuma noticia encontrada via Google Search' });
+    // ═══ STEP 2: Resolve redirect URLs to get REAL article URLs ═══
+    async function resolveRedirect(url) {
+      try {
+        const resp = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
+        // The final URL after all redirects
+        return resp.url || url;
+      } catch {
+        try {
+          // Some servers don't support HEAD, try GET with abort
+          const resp = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(5000) });
+          const finalUrl = resp.url;
+          resp.body?.cancel(); // Don't download the body
+          return finalUrl || url;
+        } catch {
+          return url; // Return original if resolution fails
+        }
+      }
     }
 
-    // ═══ STEP 2: Ask AI to describe each grounding URL (no search needed) ═══
-    const urlList = groundingUrls.slice(0, 10).map((g, i) =>
-      `${i + 1}. URL: ${g.url}\n   Titulo do Google: ${g.title}`
+    // Resolve all redirect URLs in parallel
+    const resolvedUrls = await Promise.all(
+      rawGroundingUrls.slice(0, 10).map(async (g) => {
+        const isRedirect = g.redirectUrl.includes('vertexaisearch.cloud.google.com') ||
+                           g.redirectUrl.includes('grounding-api-redirect');
+        const realUrl = isRedirect ? await resolveRedirect(g.redirectUrl) : g.redirectUrl;
+        console.log(`  Resolved: ${g.title} → ${realUrl}`);
+        return { title: g.title, url: realUrl };
+      })
+    );
+
+    // Filter out URLs that still point to Google (resolution failed)
+    const validUrls = resolvedUrls.filter(u =>
+      !u.url.includes('vertexaisearch.cloud.google.com') &&
+      !u.url.includes('grounding-api-redirect') &&
+      u.url.startsWith('http')
+    );
+
+    console.log('Resolved valid URLs:', validUrls.length);
+
+    if (validUrls.length === 0 && !searchText) {
+      return res.json({ news: [], error: 'Nenhuma noticia encontrada' });
+    }
+
+    // ═══ STEP 3: Ask AI to format news items with real URLs ═══
+    const urlList = validUrls.map((g, i) =>
+      `${i + 1}. TITULO: ${g.title}\n   URL_REAL: ${g.url}`
     ).join('\n');
 
-    const describePrompt = `Aqui estao noticias reais encontradas via Google Search. Para cada uma, crie um titulo atrativo em portugues e um resumo curto (2-3 frases) focado em como impacta infoprodutores e empreendedores digitais brasileiros.
+    const describePrompt = `Aqui estao noticias reais encontradas via Google Search. Para cada uma, crie um titulo atrativo em portugues e um resumo curto (2-3 frases).
 
-NOTICIAS ENCONTRADAS:
+NOTICIAS COM URLs REAIS VERIFICADAS:
 ${urlList}
 
-CONTEXTO DO QUE FOI ENCONTRADO:
-${searchText.substring(0, 2000)}
+CONTEXTO ADICIONAL DAS NOTICIAS:
+${searchText.substring(0, 3000)}
 
 REGRAS:
 - Titulo em PORTUGUES BRASILEIRO, atrativo para Instagram
-- Resumo curto (2-3 frases) em PT-BR
-- Source = nome do site (extraia do dominio da URL)
-- URL = EXATAMENTE a URL fornecida acima (NAO modifique, NAO invente outra)
-- Retorne TODAS as noticias listadas acima
+- Resumo curto (2-3 frases) em PT-BR focado em impacto para empreendedores digitais
+- Source = nome do site (extraia do dominio da URL_REAL)
+- URL = copie EXATAMENTE a URL_REAL fornecida — NAO modifique nenhum caractere
+- Retorne TODAS as noticias
 
-Retorne JSON: { "news": [{ "title": "titulo em PT-BR", "summary": "resumo em PT-BR", "source": "Nome do Site", "url": "URL EXATA da lista acima" }] }`;
+JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "copiar URL_REAL exata" }] }`;
 
     const descRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -460,57 +497,44 @@ Retorne JSON: { "news": [{ "title": "titulo em PT-BR", "summary": "resumo em PT-
     );
 
     const descData = await descRes.json();
-    if (!descRes.ok) {
-      // If step 2 fails, still return grounding URLs with basic info
-      console.error('Describe step failed:', descData.error?.message);
-      const fallbackNews = groundingUrls.slice(0, 10).map(g => {
-        let source = 'Desconhecido';
-        try { source = new URL(g.url).hostname.replace('www.', ''); } catch {}
-        return { title: g.title || 'Noticia', summary: '', source, url: g.url };
-      });
-      return res.json({ news: fallbackNews });
-    }
-
-    const descText = (descData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
     let newsItems = [];
 
-    try {
-      const result = JSON.parse(descText);
-      newsItems = result.news || [];
-    } catch {
-      const jsonMatch = descText.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
-      if (jsonMatch) {
-        try { newsItems = JSON.parse(jsonMatch[0]).news || []; } catch {}
-      }
-    }
-
-    // ═══ STEP 3: FORCE real URLs — replace any AI-generated URL with grounding URL ═══
-    // The AI might still change/invent URLs in step 2, so we override them
-    for (let i = 0; i < newsItems.length; i++) {
-      if (groundingUrls[i]) {
-        newsItems[i].url = groundingUrls[i].url; // ALWAYS use grounding URL
-        // Also fix source from real URL if missing
-        if (!newsItems[i].source) {
-          try { newsItems[i].source = new URL(groundingUrls[i].url).hostname.replace('www.', ''); } catch {}
+    if (descRes.ok) {
+      const descText = (descData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+      try {
+        const result = JSON.parse(descText);
+        newsItems = result.news || [];
+      } catch {
+        const jsonMatch = descText.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
+        if (jsonMatch) {
+          try { newsItems = JSON.parse(jsonMatch[0]).news || []; } catch {}
         }
       }
     }
 
-    // If AI returned fewer items than grounding URLs, add the remaining
-    if (newsItems.length < groundingUrls.length) {
-      for (let i = newsItems.length; i < groundingUrls.length && i < 10; i++) {
-        let source = 'Desconhecido';
-        try { source = new URL(groundingUrls[i].url).hostname.replace('www.', ''); } catch {}
-        newsItems.push({
-          title: groundingUrls[i].title || `Noticia ${i + 1}`,
-          summary: '',
-          source,
-          url: groundingUrls[i].url,
-        });
+    // ═══ STEP 4: FORCE real URLs — ALWAYS override with our resolved URLs ═══
+    for (let i = 0; i < newsItems.length; i++) {
+      if (validUrls[i]) {
+        newsItems[i].url = validUrls[i].url; // ALWAYS use resolved real URL
+        if (!newsItems[i].source) {
+          try { newsItems[i].source = new URL(validUrls[i].url).hostname.replace('www.', ''); } catch {}
+        }
       }
     }
 
-    console.log('Fetch news final:', newsItems.length, 'items with verified URLs');
+    // Add any remaining resolved URLs not covered by AI
+    for (let i = newsItems.length; i < validUrls.length; i++) {
+      let source = '';
+      try { source = new URL(validUrls[i].url).hostname.replace('www.', ''); } catch {}
+      newsItems.push({
+        title: validUrls[i].title || `Noticia ${i + 1}`,
+        summary: '',
+        source,
+        url: validUrls[i].url,
+      });
+    }
+
+    console.log('Fetch news final:', newsItems.length, 'items with REAL resolved URLs');
     res.json({ news: newsItems });
   } catch (err) {
     console.error('Fetch news error:', err.message);
