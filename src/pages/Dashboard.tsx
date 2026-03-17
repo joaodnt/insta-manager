@@ -449,7 +449,7 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
     setLoading(true);
     try {
       const hookText = selectedNews
-        ? `${selectedNews.title} — Fonte: ${selectedNews.source} (${selectedNews.url})`
+        ? `${selectedNews.title} — Fonte: ${selectedNews.source}\nLink: ${selectedNews.url}`
         : ''; // empty = auto-idea mode
       const p = await api.createPost({ ...form, hook: hookText });
       onCreate(p);
@@ -459,7 +459,7 @@ function NewPostModal({ onClose, onCreate }: { onClose: () => void; onCreate: (p
   };
 
   const handleCreate = async () => {
-    if (form.pilar === 'noticias') {
+    if (form.pilar === 'noticias' || form.pilar === 'react') {
       // Fetch news first
       setNewsStep(true);
       setNewsLoading(true);

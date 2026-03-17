@@ -561,6 +561,32 @@ REGRAS ESPECIFICAS:
 - Mostre o que o infoprodutor deve fazer AGORA com base na noticia
 - Combine: 1 fonte de noticias rapidas + 1 analise profunda + impacto pratico
 - Use dados, numeros e fatos concretos sempre que possivel`,
+
+  react: `Voce esta criando conteudo para o pilar REACT do Instagram @ojoaonetocp (Infomestre).
+Estilo: REACAO a noticias — informal, opinativo, como se estivesse reagindo ao vivo. Estilo "react" de criador de conteudo.
+Tom: descontraido, provocador, com opiniao forte. Como se estivesse contando a noticia pra um amigo no bar.
+Objetivo: reagir a noticias do mercado digital/IA mostrando COMO ISSO IMPACTA a vida real de infoprodutores e empreendedores.
+
+ESTILO DE LINGUAGEM:
+- Informal total: "mano", "cara", "olha so", "pensa comigo", "isso e INSANO"
+- Reacoes emocionais: surpresa, indignacao, empolgacao, preocupacao
+- Fala como se tivesse acabado de ver a noticia e esta reagindo na hora
+- Use girias brasileiras naturais, sem forcar
+- Opinioes FORTES — nao fique em cima do muro
+
+ESTRUTURA DE REACT:
+1. Reacao inicial impactante (o hook que para o scroll)
+2. Conta a noticia de forma rapida e clara (SEMPRE com a fonte e link)
+3. Da sua opiniao CRUA sobre o que isso significa
+4. Mostra o impacto pratico: "e pra voce que [faz X], isso muda tudo porque..."
+5. O que VOCE faria se fosse o seguidor
+6. Previsao ousada sobre o futuro
+
+REGRA CRITICA:
+- SEMPRE inclua o LINK REAL da noticia original no conteudo
+- Formate assim: "Fonte: [Nome do Site] — [URL completa]"
+- O link deve aparecer no slide da noticia E na caption
+- Se a noticia foi passada no hook/topic, extraia o link de la e use no conteudo`,
 };
 
 // ── Generate content for Reel/Single posts (hook + corpo + CTA + caption) ────
@@ -584,8 +610,13 @@ Crie algo que seria viral no Instagram de infoprodutos. Pense em:
 - Dores e desejos de infoprodutores brasileiros
 - Algo provocador, educativo ou inspirador`;
   } else {
+    // Extract URL from topic if present (for react/noticias pilars)
+    const urlMatch = input.match(/https?:\/\/[^\s)]+/);
+    const newsUrl = urlMatch ? urlMatch[0] : '';
+    const linkInstruction = newsUrl ? `\n\nIMPORTANTE: O link da noticia original e: ${newsUrl}\n- INCLUA este link no corpo do conteudo\n- INCLUA este link na caption\n- Formate: "Fonte: [Site] — ${newsUrl}"` : '';
+
     contextBlock = `O TEMA/ASSUNTO do post e: "${input}"
-Baseado neste tema, pesquise/desenvolva o conteudo.`;
+Baseado neste tema, pesquise/desenvolva o conteudo.${linkInstruction}`;
   }
 
   const isReel = formato === 'reel';
@@ -684,13 +715,18 @@ Depois de definir a ideia:
 2. Desenvolva o conteudo completo de cada slide
 3. O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`;
     } else if (isTopicBased) {
+      // Extract URL from topic if present (for react/noticias pilars)
+      const urlMatch = input.match(/https?:\/\/[^\s)]+/);
+      const newsUrl = urlMatch ? urlMatch[0] : '';
+      const linkInstruction = newsUrl ? `\n\nIMPORTANTE: O link da noticia original e: ${newsUrl}\n- INCLUA este link no slide da noticia (slide 2)\n- INCLUA este link na caption\n- Formate: "Fonte: [Site] — ${newsUrl}"` : '';
+
       contextBlock = `O TEMA/ASSUNTO do post e: "${input}"
 Baseado neste tema, voce precisa:
 1. Criar um HOOK poderoso (a frase de capa que para o scroll) relacionado ao tema
 2. Pesquisar/desenvolver o conteudo com base no tema descrito
 3. Gerar o conteudo textual de cada slide
 
-O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.`;
+O hook deve ser curto (1-2 linhas), impactante, e fazer a pessoa querer ver o resto do carrossel.${linkInstruction}`;
     } else {
       contextBlock = `O HOOK do post e: "${input}"`;
     }
@@ -913,7 +949,7 @@ app.get('/api/posts/:id/export-doc', async (req, res) => {
   const isReel = post.formato === 'reel';
   const pilarLabels = {
     'bastidores': 'Bastidores', 'sistemas': 'Sistemas', 'ia-aplicada': 'IA Aplicada',
-    'provocacao': 'Provocacao', 'resultado': 'Resultado', 'noticias': 'Noticias'
+    'provocacao': 'Provocacao', 'resultado': 'Resultado', 'noticias': 'Noticias', 'react': 'React'
   };
   const formatoLabels = { 'reel': 'Reel', 'carrossel': 'Carrossel', 'single': 'Post Unico' };
 

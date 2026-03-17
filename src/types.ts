@@ -1,5 +1,5 @@
 export type Status = 'rascunho' | 'em-producao' | 'pronto' | 'agendado' | 'postado';
-export type Pilar = 'bastidores' | 'sistemas' | 'ia-aplicada' | 'provocacao' | 'resultado' | 'noticias';
+export type Pilar = 'bastidores' | 'sistemas' | 'ia-aplicada' | 'provocacao' | 'resultado' | 'noticias' | 'react';
 export type Formato = 'reel' | 'carrossel' | 'single';
 
 export interface Slide {

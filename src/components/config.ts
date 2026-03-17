@@ -15,6 +15,7 @@ export const PILAR_CFG: Record<Pilar, { label: string; color: string }> = {
   'provocacao':  { label: 'Provocacao',   color: '#DC2626' },
   'resultado':   { label: 'Resultado',    color: '#16A34A' },
   'noticias':    { label: 'Noticias',     color: '#F97316' },
+  'react':       { label: 'React',       color: '#E11D48' },
 };
 
 export const FORMATO_CFG: Record<Formato, { label: string; icon: string }> = {
@@ -24,7 +25,7 @@ export const FORMATO_CFG: Record<Formato, { label: string; icon: string }> = {
 };
 
 export const STATUS_CYCLE: Status[] = ['rascunho', 'em-producao', 'pronto', 'agendado', 'postado'];
-export const PILARES: Pilar[] = ['bastidores', 'sistemas', 'ia-aplicada', 'provocacao', 'resultado', 'noticias'];
+export const PILARES: Pilar[] = ['bastidores', 'sistemas', 'ia-aplicada', 'provocacao', 'resultado', 'noticias', 'react'];
 
 // ── Pilar-specific default slide presets for carousels ──────
 export const PILAR_SLIDE_PRESETS: Record<Pilar, { label: string; hint: string }[]> = {
@@ -83,6 +84,15 @@ export const PILAR_SLIDE_PRESETS: Record<Pilar, { label: string; hint: string }[
     { label: 'Oportunidade — como aproveitar', hint: 'O que fazer agora, como se posicionar' },
     { label: 'Opiniao — analise Infomestre', hint: 'Sua visao, previsao, posicionamento' },
     { label: 'CTA — chamada para acao', hint: 'Siga para mais noticias, comente sua opiniao' },
+  ],
+  react: [
+    { label: 'Hook — a noticia que explodiu', hint: 'Manchete impactante + sua reacao inicial' },
+    { label: 'Noticia — o que rolou', hint: 'Resumo rapido com fonte e link' },
+    { label: 'Minha reacao — o que eu penso', hint: 'Opiniao crua, informal, de quem vive o mercado' },
+    { label: 'Impacto — como isso te afeta', hint: 'Consequencias praticas para infoprodutores' },
+    { label: 'O que eu faria — acao pratica', hint: 'Se fosse voce, eu faria isso AGORA' },
+    { label: 'Previsao — o que vem por ai', hint: 'Sua aposta sobre o futuro com base nisso' },
+    { label: 'CTA — e voce, o que acha?', hint: 'Convite para comentar, debater, compartilhar' },
   ],
 };
 export const FORMATOS: Formato[] = ['reel', 'carrossel', 'single'];
