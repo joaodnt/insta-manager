@@ -379,124 +379,139 @@ app.post('/api/fetch-news', async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'GEMINI_API_KEY nao configurada.' });
 
   try {
-    const systemPrompt = `Voce e um curador de noticias sobre tecnologia, IA, automacao e marketing digital.
-
-Busque as NOTICIAS MAIS RECENTES E RELEVANTES de hoje ou desta semana sobre:
-- Inteligencia Artificial (novos modelos, ferramentas, atualizacoes)
+    // ═══ STEP 1: Use Google Search grounding to get REAL URLs ═══
+    const searchPrompt = `Busque as noticias mais recentes (de hoje ou desta semana) sobre:
+- Inteligencia Artificial (novos modelos, ferramentas, atualizacoes da OpenAI, Google, Meta, etc)
 - Automacao de marketing e vendas
-- Big Tech (Google, Meta, OpenAI, Microsoft, Apple)
+- Big Tech (Google, Meta, OpenAI, Microsoft, Apple, Amazon)
 - Ferramentas digitais e SaaS
-- Tendencias de infoprodutos e marketing digital
+- Tendencias de mercado digital
 
-FONTES PRIORITARIAS: TechCrunch, Wired, The Verge, VentureBeat, Ars Technica, CNET, Artificial Intelligence News, IA Brasil Noticias, InfoMoney, Exame, CNN Brasil, Canaltech, IT Forum
+Liste cada noticia encontrada com titulo e resumo curto.`;
 
-REGRAS:
-- Retorne entre 6 a 10 noticias REAIS e ATUAIS
-- Cada noticia deve ter: titulo, resumo curto (2-3 frases), fonte (nome do site), e URL REAL da materia original
-- A URL deve ser o link REAL e COMPLETO da materia (ex: https://techcrunch.com/2025/...)
-- Priorize noticias de HOJE ou dos ultimos 3 dias
-- Foque em noticias que impactam infoprodutores e empreendedores digitais brasileiros
-- Tudo em PORTUGUES BRASILEIRO
-- IMPORTANTE: Use APENAS URLs que voce encontrou na busca. NAO invente URLs.
-
-Retorne JSON: { "news": [{ "title": "...", "summary": "...", "source": "...", "url": "https://..." }] }`;
-
-    const apiRes = await fetch(
+    const searchRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }],
+          contents: [{ parts: [{ text: searchPrompt }] }],
           tools: [{ googleSearch: {} }],
         }),
       }
     );
 
-    const data = await apiRes.json();
-    console.log('Fetch news API status:', apiRes.status);
-    if (!apiRes.ok) {
-      console.error('Fetch news API error:', JSON.stringify(data.error || data));
-      return res.status(500).json({ error: data.error?.message || 'Erro API Gemini' });
+    const searchData = await searchRes.json();
+    if (!searchRes.ok) {
+      console.error('Fetch news search error:', JSON.stringify(searchData.error || searchData));
+      return res.status(500).json({ error: searchData.error?.message || 'Erro API Gemini' });
     }
 
-    // Extract grounding metadata (real URLs from Google Search)
-    const groundingMeta = data.candidates?.[0]?.groundingMetadata;
+    // Extract REAL URLs from grounding metadata — these are the ONLY trustworthy URLs
+    const groundingMeta = searchData.candidates?.[0]?.groundingMetadata;
     const groundingChunks = groundingMeta?.groundingChunks || [];
+    const searchSupport = groundingMeta?.searchEntryPoint || null;
     const groundingUrls = groundingChunks
-      .filter(c => c.web)
-      .map(c => ({ title: c.web.title || '', url: c.web.uri || '' }));
-    console.log('Grounding URLs found:', groundingUrls.length);
+      .filter(c => c.web && c.web.uri)
+      .map(c => ({ title: (c.web.title || '').trim(), url: c.web.uri }));
 
-    // Extract text content
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const text = parts.map(p => p.text || '').join('');
-    console.log('Fetch news raw text length:', text.length);
+    console.log('Grounding URLs found:', groundingUrls.length, groundingUrls.map(g => g.url));
 
-    // Try to find JSON in the response
+    // Also get the AI text for context
+    const searchText = (searchData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+
+    if (groundingUrls.length === 0) {
+      console.error('No grounding URLs found. Text:', searchText.substring(0, 500));
+      return res.json({ news: [], error: 'Nenhuma noticia encontrada via Google Search' });
+    }
+
+    // ═══ STEP 2: Ask AI to describe each grounding URL (no search needed) ═══
+    const urlList = groundingUrls.slice(0, 10).map((g, i) =>
+      `${i + 1}. URL: ${g.url}\n   Titulo do Google: ${g.title}`
+    ).join('\n');
+
+    const describePrompt = `Aqui estao noticias reais encontradas via Google Search. Para cada uma, crie um titulo atrativo em portugues e um resumo curto (2-3 frases) focado em como impacta infoprodutores e empreendedores digitais brasileiros.
+
+NOTICIAS ENCONTRADAS:
+${urlList}
+
+CONTEXTO DO QUE FOI ENCONTRADO:
+${searchText.substring(0, 2000)}
+
+REGRAS:
+- Titulo em PORTUGUES BRASILEIRO, atrativo para Instagram
+- Resumo curto (2-3 frases) em PT-BR
+- Source = nome do site (extraia do dominio da URL)
+- URL = EXATAMENTE a URL fornecida acima (NAO modifique, NAO invente outra)
+- Retorne TODAS as noticias listadas acima
+
+Retorne JSON: { "news": [{ "title": "titulo em PT-BR", "summary": "resumo em PT-BR", "source": "Nome do Site", "url": "URL EXATA da lista acima" }] }`;
+
+    const descRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: describePrompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+
+    const descData = await descRes.json();
+    if (!descRes.ok) {
+      // If step 2 fails, still return grounding URLs with basic info
+      console.error('Describe step failed:', descData.error?.message);
+      const fallbackNews = groundingUrls.slice(0, 10).map(g => {
+        let source = 'Desconhecido';
+        try { source = new URL(g.url).hostname.replace('www.', ''); } catch {}
+        return { title: g.title || 'Noticia', summary: '', source, url: g.url };
+      });
+      return res.json({ news: fallbackNews });
+    }
+
+    const descText = (descData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
     let newsItems = [];
-    const jsonMatch = text.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const result = JSON.parse(jsonMatch[0]);
-        newsItems = result.news || [];
-      } catch (e) {
-        console.error('JSON parse error:', e.message);
+
+    try {
+      const result = JSON.parse(descText);
+      newsItems = result.news || [];
+    } catch {
+      const jsonMatch = descText.match(/\{[\s\S]*"news"[\s\S]*\[[\s\S]*\][\s\S]*\}/);
+      if (jsonMatch) {
+        try { newsItems = JSON.parse(jsonMatch[0]).news || []; } catch {}
       }
     }
 
-    // Fallback: try to extract any JSON array
-    if (newsItems.length === 0) {
-      const arrayMatch = text.match(/\[[\s\S]*\]/);
-      if (arrayMatch) {
-        try {
-          const arr = JSON.parse(arrayMatch[0]);
-          if (Array.isArray(arr) && arr.length > 0) newsItems = arr;
-        } catch {}
-      }
-    }
-
-    // If we got news items, enrich URLs with grounding data
-    if (newsItems.length > 0) {
-      // Try to match news items with grounding URLs by source/title similarity
-      for (let i = 0; i < newsItems.length; i++) {
-        const item = newsItems[i];
-        // If URL is missing or looks fake (no real domain), try to find real URL from grounding
-        if (!item.url || item.url.includes('example.com') || item.url === '#' || item.url.length < 10) {
-          // Find best matching grounding URL by title similarity
-          const match = groundingUrls.find(g =>
-            g.title && item.title && (
-              g.title.toLowerCase().includes(item.title.substring(0, 20).toLowerCase()) ||
-              item.title.toLowerCase().includes(g.title.substring(0, 20).toLowerCase()) ||
-              (item.source && g.url.toLowerCase().includes(item.source.toLowerCase().replace(/\s/g, '')))
-            )
-          );
-          if (match) {
-            item.url = match.url;
-          } else if (groundingUrls[i]) {
-            // Fallback: use the grounding URL at the same index
-            item.url = groundingUrls[i].url;
-          }
+    // ═══ STEP 3: FORCE real URLs — replace any AI-generated URL with grounding URL ═══
+    // The AI might still change/invent URLs in step 2, so we override them
+    for (let i = 0; i < newsItems.length; i++) {
+      if (groundingUrls[i]) {
+        newsItems[i].url = groundingUrls[i].url; // ALWAYS use grounding URL
+        // Also fix source from real URL if missing
+        if (!newsItems[i].source) {
+          try { newsItems[i].source = new URL(groundingUrls[i].url).hostname.replace('www.', ''); } catch {}
         }
       }
-      console.log('Fetch news final:', newsItems.length, 'items');
-      return res.json({ news: newsItems });
     }
 
-    // Last resort: build news items from grounding metadata alone
-    if (groundingUrls.length > 0) {
-      console.log('Building news from grounding URLs only');
-      const builtNews = groundingUrls.slice(0, 10).map((g, i) => ({
-        title: g.title || `Noticia ${i + 1}`,
-        summary: '',
-        source: new URL(g.url).hostname.replace('www.', ''),
-        url: g.url,
-      }));
-      return res.json({ news: builtNews });
+    // If AI returned fewer items than grounding URLs, add the remaining
+    if (newsItems.length < groundingUrls.length) {
+      for (let i = newsItems.length; i < groundingUrls.length && i < 10; i++) {
+        let source = 'Desconhecido';
+        try { source = new URL(groundingUrls[i].url).hostname.replace('www.', ''); } catch {}
+        newsItems.push({
+          title: groundingUrls[i].title || `Noticia ${i + 1}`,
+          summary: '',
+          source,
+          url: groundingUrls[i].url,
+        });
+      }
     }
 
-    console.error('Could not parse news from response. First 500 chars:', text.substring(0, 500));
-    res.json({ news: [], raw: text.substring(0, 200) });
+    console.log('Fetch news final:', newsItems.length, 'items with verified URLs');
+    res.json({ news: newsItems });
   } catch (err) {
     console.error('Fetch news error:', err.message);
     res.status(500).json({ error: err.message });
