@@ -429,21 +429,29 @@ Liste cada noticia encontrada com titulo, data de publicacao e resumo curto.`;
     const searchText = (searchData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
 
     // ═══ STEP 2: Resolve redirect URLs to get REAL article URLs ═══
+    const browserHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    };
+
     async function resolveRedirect(url) {
       try {
-        const resp = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(5000) });
-        // The final URL after all redirects
-        return resp.url || url;
-      } catch {
-        try {
-          // Some servers don't support HEAD, try GET with abort
-          const resp = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(5000) });
-          const finalUrl = resp.url;
-          resp.body?.cancel(); // Don't download the body
-          return finalUrl || url;
-        } catch {
-          return url; // Return original if resolution fails
+        // Use manual redirect to capture Location header
+        const resp = await fetch(url, { method: 'GET', redirect: 'manual', headers: browserHeaders, signal: AbortSignal.timeout(8000) });
+        const location = resp.headers.get('location');
+        if (location && !location.includes('vertexaisearch') && !location.includes('grounding-api-redirect')) {
+          return location;
         }
+        // If manual didn't work, try following
+        const resp2 = await fetch(url, { method: 'GET', redirect: 'follow', headers: browserHeaders, signal: AbortSignal.timeout(8000) });
+        const finalUrl = resp2.url;
+        resp2.body?.cancel();
+        if (finalUrl && !finalUrl.includes('vertexaisearch') && !finalUrl.includes('grounding-api-redirect')) {
+          return finalUrl;
+        }
+        return url;
+      } catch {
+        return url; // Return original if resolution fails
       }
     }
 
@@ -466,6 +474,36 @@ Liste cada noticia encontrada com titulo, data de publicacao e resumo curto.`;
     );
 
     console.log('Resolved valid URLs:', validUrls.length);
+
+    // If redirect resolution failed, try extracting URLs from the AI text itself
+    if (validUrls.length === 0) {
+      console.log('No valid URLs from grounding redirect. Trying to extract from text...');
+      const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_+.~#?&/=]*/g;
+      const textUrls = [...new Set((searchText.match(urlRegex) || []).filter(u =>
+        !u.includes('vertexaisearch') && !u.includes('grounding-api-redirect') && !u.includes('google.com/search')
+      ))];
+      if (textUrls.length > 0) {
+        console.log('Found URLs in text:', textUrls.length);
+        textUrls.slice(0, 10).forEach((u, i) => {
+          const titleMatch = rawGroundingUrls[i];
+          validUrls.push({ title: titleMatch?.title || `Noticia ${i + 1}`, url: u });
+        });
+      }
+    }
+
+    // Also try parsing searchEntryPoint for real links
+    if (validUrls.length === 0 && groundingMeta?.searchEntryPoint?.renderedContent) {
+      const html = groundingMeta.searchEntryPoint.renderedContent;
+      const hrefRegex = /href="(https?:\/\/[^"]+)"/g;
+      let hrefMatch;
+      while ((hrefMatch = hrefRegex.exec(html)) !== null) {
+        const href = hrefMatch[1];
+        if (!href.includes('google.com')) {
+          validUrls.push({ title: '', url: href });
+        }
+      }
+      console.log('Found URLs in searchEntryPoint:', validUrls.length);
+    }
 
     if (validUrls.length === 0 && !searchText) {
       return res.json({ news: [], error: 'Nenhuma noticia encontrada' });

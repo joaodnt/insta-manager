@@ -259,6 +259,17 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
     setTimeout(() => setCopiedCopy(false), 2500);
   };
 
+  // Auto-save helper — persists current form + updates to DB
+  const autoSave = async (updates: Partial<Post>) => {
+    try {
+      const merged = { ...form, ...updates };
+      const saved = await api.updatePost(post.id, merged);
+      onSave(saved);
+    } catch (e) {
+      console.error('Auto-save failed:', e);
+    }
+  };
+
   // Auto-generate content for Reel/Single posts (hook + corpo + CTA + caption)
   const generatePostContent = async (pilar: string, topicOrHook: string, formato: string) => {
     setContentGenLoading(true);
@@ -270,6 +281,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
       if (result.cta) updates.cta = result.cta;
       if (result.caption) updates.caption = result.caption;
       setForm(f => ({ ...f, ...updates }));
+      // Auto-save so content persists even if user closes without clicking Salvar
+      await autoSave(updates);
     } catch (err: any) {
       console.error('Erro ao gerar conteudo:', err.message);
       alert('Erro ao gerar conteudo: ' + (err.message || 'Tente novamente'));
@@ -313,6 +326,8 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
         updates.caption = caption;
       }
       setForm(f => ({ ...f, ...updates }));
+      // Auto-save so content persists even if user closes without clicking Salvar
+      await autoSave(updates);
     } catch (err: any) {
       console.error('Erro ao gerar conteudo:', err.message);
       alert('Erro ao gerar conteudo: ' + (err.message || 'Tente novamente'));
@@ -330,9 +345,12 @@ export function PostModal({ post, onClose, onSave, onDelete }: Props) {
         const defaultSlides = getDefaultSlidesForPilar(p.pilar);
         p.slides = defaultSlides;
         shouldAutoGen = true;
+      } else if (p.formato === 'carrossel' && p.slides && p.slides.length > 0 && p.slides.every(s => !s.content)) {
+        // Slides exist but all empty — re-trigger generation
+        shouldAutoGen = true;
       }
-      // Auto-generate for reel/single if new post (no corpo, no hook with real content)
-      if ((p.formato === 'reel' || p.formato === 'single') && !p.corpo) {
+      // Auto-generate for reel/single if new post (no corpo AND no caption — truly empty)
+      if ((p.formato === 'reel' || p.formato === 'single') && !p.corpo && !p.caption) {
         shouldAutoGen = true;
       }
       setForm(p);
